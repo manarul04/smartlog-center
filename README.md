@@ -53,7 +53,8 @@ Cek cepat:
 ```bash
 php -v
 composer -V
-php -m | findstr pdo_pgsql
+php -m | findstr pdo_pgsql    # Windows
+php -m | grep pdo_pgsql       # Linux / macOS
 ```
 
 ## Instalasi (5 menit)
@@ -71,7 +72,8 @@ dikerjakan wizard.
 
 Yang terjadi otomatis saat pertama kali dibuka:
 
-1. `.env` dibuat dari `.env.example` bila belum ada.
+1. `.env` dibuat dari `.env.example` bila belum ada (biasanya sudah dibuat
+   saat `composer install` menjalankan `package:discover`).
 2. `APP_KEY` dibuat dan disimpan di `storage/framework/app-key` (file ini
    diabaikan git). Kunci ini dipakai untuk enkripsi sesi dan password indexer.
 3. Semua halaman dialihkan ke `/setup` karena database dan indexer belum diisi.
