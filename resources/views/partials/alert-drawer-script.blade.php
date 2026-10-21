@@ -66,7 +66,7 @@
             fact('Time', src.timestamp) +
             fact('Rule', (rule.id || '?') + (rule.firedtimes ? ' · fired ' + rule.firedtimes + 'x' : '')) +
             fact('Groups', (rule.groups || []).join(', ')) +
-            fact('Agent', (agent.name || 'â€”') + (agent.ip ? ' (' + agent.ip + ')' : '')) +
+            fact('Agent', (agent.name || '—') + (agent.ip ? ' (' + agent.ip + ')' : '')) +
             fact('Decoder', (src.decoder || {}).name) +
             fact('Location', src.location) +
             fact('Manager', (src.manager || {}).name) +

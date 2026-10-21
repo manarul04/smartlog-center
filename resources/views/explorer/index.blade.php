@@ -19,7 +19,7 @@
                 <div class="field" style="flex:1;min-width:220px">
                     <label for="q">Search</label>
                     <input id="q" name="q" class="input" value="{{ $filters['q'] }}"
-                           placeholder="rule text, command line, agent, IP, rule idâ€¦" autocomplete="off"
+                           placeholder="rule text, command line, agent, IP, rule id…" autocomplete="off"
                            data-debounce-submit>
                 </div>
 
@@ -201,7 +201,7 @@
                                 ]));
                             };
                             $sortMark = fn (string $column) => $sort === $column
-                                ? ($dir === 'asc' ? 'â†‘' : 'â†“')
+                                ? ($dir === 'asc' ? '↑' : '↓')
                                 : '';
                         @endphp
                         <tr>
@@ -253,7 +253,7 @@
                                     </td>
                                 @endcan
                                 <td class="mono text-secondary nowrap" data-ts="{{ $src['timestamp'] ?? '' }}">
-                                    {{ isset($src['timestamp']) ? \Illuminate\Support\Carbon::parse($src['timestamp'])->format('d M H:i:s') : 'â€”' }}
+                                    {{ isset($src['timestamp']) ? \Illuminate\Support\Carbon::parse($src['timestamp'])->format('d M H:i:s') : '—' }}
                                 </td>
                                 <td>
                                     <span class="badge {{ $token }}">{{ $level }}</span>
@@ -262,7 +262,7 @@
                                     @if (!empty($item['highlight']['rule.description'][0]))
                                         {!! $item['highlight']['rule.description'][0] !!}
                                     @else
-                                        {{ \Illuminate\Support\Str::limit($src['rule']['description'] ?? 'â€”', 110) }}
+                                        {{ \Illuminate\Support\Str::limit($src['rule']['description'] ?? '—', 110) }}
                                     @endif
                                     <div class="fs-11 text-muted" style="margin-top:2px">
                                         rule {{ $src['rule']['id'] ?? '?' }}
@@ -276,7 +276,7 @@
                                 </td>
                                 <td>
                                     <a href="{{ route('explorer.index', array_merge(request()->query(), ['agent' => $src['agent']['name'] ?? '', 'page' => 1])) }}"
-                                       class="link-strong">{{ $src['agent']['name'] ?? 'â€”' }}</a>
+                                       class="link-strong">{{ $src['agent']['name'] ?? '—' }}</a>
                                     <div class="fs-11 text-muted mono">{{ $src['agent']['ip'] ?? '' }}</div>
                                 </td>
                                 <td>
@@ -345,11 +345,11 @@
                     <div class="spacer"></div>
 
                     <a class="page-btn {{ $current <= 1 ? 'disabled' : '' }}"
-                       href="{{ route('explorer.index', array_merge($query, ['page' => max(1, $current - 1)])) }}">â€¹</a>
+                       href="{{ route('explorer.index', array_merge($query, ['page' => max(1, $current - 1)])) }}">‹</a>
 
                     @if ($start > 1)
                         <a class="page-btn" href="{{ route('explorer.index', array_merge($query, ['page' => 1])) }}">1</a>
-                        @if ($start > 2)<span class="text-muted">â€¦</span>@endif
+                        @if ($start > 2)<span class="text-muted">…</span>@endif
                     @endif
 
                     @for ($p = $start; $p <= $end; $p++)
@@ -358,12 +358,12 @@
                     @endfor
 
                     @if ($end < $last)
-                        @if ($end < $last - 1)<span class="text-muted">â€¦</span>@endif
+                        @if ($end < $last - 1)<span class="text-muted">…</span>@endif
                         <a class="page-btn" href="{{ route('explorer.index', array_merge($query, ['page' => $last])) }}">{{ $last }}</a>
                     @endif
 
                     <a class="page-btn {{ $current >= $last ? 'disabled' : '' }}"
-                       href="{{ route('explorer.index', array_merge($query, ['page' => min($last, $current + 1)])) }}">â€º</a>
+                       href="{{ route('explorer.index', array_merge($query, ['page' => min($last, $current + 1)])) }}">›</a>
                 </div>
             @endif
         @endif
