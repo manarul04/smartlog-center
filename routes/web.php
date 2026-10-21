@@ -3,6 +3,7 @@
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\AgentReportController;
 use App\Http\Controllers\AlertActionController;
+use App\Http\Controllers\AlertGroupController;
 use App\Http\Controllers\AuditController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\ComplianceController;
@@ -50,6 +51,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/alerts/{annotation}/comment', [AlertActionController::class, 'comment'])->name('alerts.comment');
 
         Route::post('/reports/from-alert', [ReportsController::class, 'storeFromAlert'])->name('reports.from-alert');
+        Route::post('/reports/from-group', [AlertGroupController::class, 'store'])->name('reports.from-group');
         Route::post('/reports/from-vulnerability', [ReportsController::class, 'storeFromVulnerability'])->name('reports.from-vulnerability');
         Route::post('/reports/from-sca', [ReportsController::class, 'storeFromSca'])->name('reports.from-sca');
         Route::put('/reports/{report}', [ReportsController::class, 'update'])->name('reports.update');
@@ -59,6 +61,9 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::get('/threats', [ThreatController::class, 'index'])->name('threats.index');
+
+Route::get('/alert-groups', [AlertGroupController::class, 'index'])->name('alert-groups.index');
+Route::get('/alert-groups/alerts', [AlertGroupController::class, 'alerts'])->name('alert-groups.alerts');
 
     Route::get('/agents', [AgentController::class, 'index'])->name('agents.index');
     Route::get('/agents/{id}', [AgentController::class, 'show'])->name('agents.show');

@@ -69,7 +69,8 @@ class ExplorerController extends Controller
             // totals and pagination correct instead of filtering one page.
             $constraint = $this->annotations->uidConstraint(
                 $filters['status'],
-                $filters['label'] !== null ? (int) $filters['label'] : null
+                $filters['label'] !== null ? (int) $filters['label'] : null,
+                \Illuminate\Support\Carbon::now()->subMinutes($this->rangeMinutes($range))->toIso8601String()
             );
 
             $queryFilters = $filters;
@@ -187,5 +188,20 @@ class ExplorerController extends Controller
                 'can_triage' => (bool) $request->user()?->can('triage'),
             ],
         ]);
+    }
+
+    /**
+     * Preset range key to minutes, for the Postgres side of the status filter.
+     */
+    private function rangeMinutes(string $range): int
+    {
+        return match ($range) {
+            '15m' => 15,
+            '1h' => 60,
+            '7d' => 60 * 24 * 7,
+            '30d' => 60 * 24 * 30,
+            '90d' => 60 * 24 * 90,
+            default => 60 * 24,
+        };
     }
 }

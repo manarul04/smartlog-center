@@ -227,6 +227,7 @@
                                    title="Sort by agent">Agent <span class="th-sort-mark">{{ $sortMark('agent') }}</span></a>
                             </th>
                             <th style="width:110px">Status</th>
+                            <th style="width:130px">Last action</th>
                             <th style="width:150px">Labels</th>
                             <th style="width:32px"></th>
                         </tr>
@@ -284,6 +285,14 @@
                                         {{ \App\Support\AlertStatus::label($statusKey) }}
                                     </span>
                                 </td>
+                                <td class="fs-11 text-secondary">
+                                    @if ($ann && $ann->last_action_at)
+                                        <div>{{ $ann->last_action_at->diffForHumans() }}</div>
+                                        <div class="text-muted truncate">{{ $ann->lastActor->name ?? 'system' }}</div>
+                                    @else
+                                        <span class="text-muted">&mdash;</span>
+                                    @endif
+                                </td>
                                 <td>
                                     @if ($ann && $ann->labels->isNotEmpty())
                                         <div class="row wrap" style="gap:3px">
@@ -307,7 +316,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="empty">
+                                <td colspan="9" class="empty">
                                     <x-empty-icon name="search" />
                                     No events match the current filters.
                                 </td>
@@ -751,7 +760,7 @@
         // explicitly opens a form.
         var stateHost = document.getElementById('adCurrentState');
         var parts = [];
-        parts.push('Status: ' + (ann ? statusLabel(ann.status) : 'Not Reviewed'));
+        parts.push('Status: ' + (ann ? statusLabel(ann.status) : 'Untriaged'));
         parts.push('Assignee: ' + (ann && ann.assignee ? ann.assignee : 'Unassigned'));
         if (ann && ann.labels && ann.labels.length) {
             parts.push('Labels: ' + ann.labels.map(function (l) { return l.name; }).join(', '));
@@ -778,7 +787,7 @@
 
     function statusLabel(value) {
         var found = (window.__adStatuses || []).filter(function (s) { return s.value === value; })[0];
-        return found ? found.label : 'Not Reviewed';
+        return found ? found.label : 'Untriaged';
     }
 
     /**

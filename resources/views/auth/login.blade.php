@@ -82,12 +82,6 @@
                 Sign in
             </button>
         </form>
-
-        <div class="center text-muted" style="margin-top:20px;font-size:11px">
-            @if (config('opensearch.host'))
-                OpenSearch {{ parse_url(config('opensearch.host'), PHP_URL_HOST) }}:{{ config('opensearch.port') }}
-            @endif
-        </div>
     </div>
 </div>
 

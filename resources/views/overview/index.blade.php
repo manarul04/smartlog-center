@@ -349,6 +349,47 @@
         <div class="grid grid-2 mt-14">
             <div class="card">
                 <div class="card-head">
+                    <h3>Triage Coverage</h3>
+                    <div class="spacer"></div>
+                    <span class="sub">{{ $ranges[$range]['label'] }}</span>
+                </div>
+                <div class="card-body">
+                    @if ($coverage === null)
+                        <div class="empty" style="padding:22px 10px">
+                            Coverage cannot be computed while the alert query is failing.
+                        </div>
+                    @else
+                        <div class="row" style="align-items:flex-end;gap:10px">
+                            <span style="font-size:30px;font-weight:680;letter-spacing:-.03em">{{ number_format($coverage['coverage'], 1) }}%</span>
+                            <span class="fs-11 text-secondary" style="padding-bottom:5px">
+                                {{ number_format($coverage['handled']) }} of {{ number_format($coverage['total']) }} alerts handled
+                            </span>
+                        </div>
+                        <div class="bar-track" style="margin:10px 0 14px">
+                            <div class="bar-fill" style="width:{{ min(100, $coverage['coverage']) }}%;background:var(--success)"></div>
+                        </div>
+                        <div class="stat-line">
+                            <span class="k">Untriaged (no handling record)</span>
+                            <span class="v" style="color:var(--text-secondary)">{{ number_format($coverage['untriaged']) }}</span>
+                        </div>
+                        <div class="stat-line">
+                            <span class="k">Open work older than 7 days</span>
+                            <span class="v" style="color:var(--medium-text)">{{ number_format($coverage['open_7d']) }}</span>
+                        </div>
+                        <div class="stat-line">
+                            <span class="k">Open work older than 30 days</span>
+                            <span class="v" style="color:var(--high-text)">{{ number_format($coverage['open_30d']) }}</span>
+                        </div>
+                        <div class="fs-11 text-secondary" style="margin-top:10px;line-height:1.5">
+                            Alerts without a handling record are untriaged, not ignored: they stay in the
+                            explorer and remain searchable through the Untriaged filter.
+                        </div>
+                    @endif
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-head">
                     <h3>Alert Handling</h3>
                     <div class="spacer"></div>
                     <span class="sub">all time</span>

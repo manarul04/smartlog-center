@@ -22,7 +22,7 @@ class AlertStatus
     public static function all(): array
     {
         return [
-            self::NOT_REVIEWED => ['label' => 'Not Reviewed', 'color' => '#64748b', 'open' => true],
+            self::NOT_REVIEWED => ['label' => 'Untriaged', 'color' => '#64748b', 'open' => true],
             self::IN_REVIEW => ['label' => 'In Review', 'color' => '#38bdf8', 'open' => true],
             self::IN_PROGRESS => ['label' => 'In Progress', 'color' => '#fbbf24', 'open' => true],
             self::RESOLVED => ['label' => 'Resolved', 'color' => '#10b981', 'open' => false],
@@ -38,7 +38,7 @@ class AlertStatus
 
     public static function label(?string $status): string
     {
-        return self::all()[$status]['label'] ?? 'Not Reviewed';
+        return self::all()[$status]['label'] ?? 'Untriaged';
     }
 
     public static function color(?string $status): string

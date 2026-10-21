@@ -18,6 +18,7 @@ tanpa build step (CSS/JS langsung dari `public/assets`).
 - [Troubleshooting installer](#troubleshooting-installer)
 - [Modul](#modul)
 - [Triage alert](#triage-alert)
+- [Alert Groups](#alert-groups)
 - [Reports](#reports)
 - [Role dan tema](#role-dan-tema)
 - [Catatan data](#catatan-data)
@@ -32,6 +33,7 @@ tanpa build step (CSS/JS langsung dari `public/assets`).
 |---|---|
 | Overview | KPI alert, tren per severity, top rule/agent, ringkasan triage |
 | Alert Explorer | Pencarian, filter, paginasi, triage massal, export PDF |
+| Alert Groups | Pohon agent -> rule -> alert, plus report per grup rule |
 | Threat Hunting | Matriks MITRE ATT&CK dan peta taktik |
 | Agents & Health | Status agent, detail vulnerability dan SCA per agent |
 | Compliance | PCI DSS, HIPAA, GDPR, NIST 800-53, TSC |
@@ -246,8 +248,35 @@ Status penanganan, label, assignee dan catatan disimpan di PostgreSQL; OpenSearc
 tetap read-only. Alert dikenali lewat field `id` milik dokumen Wazuh, sehingga
 anotasi bertahan saat index harian berotasi.
 
-**Status alert:** Not Reviewed -> In Review -> In Progress -> Resolved / False Positive / Closed.
-Alert tanpa anotasi dianggap `not_reviewed` dan ditampilkan muted.
+**Status alert:** Untriaged -> In Review -> In Progress -> Resolved / False Positive / Closed.
+Alert tanpa anotasi dianggap `untriaged` dan ditampilkan muted.
+
+Istilah **Untriaged** dipakai, bukan "Not Reviewed": artinya belum ada tindakan
+pencatatan, bukan bahwa log-nya tidak pernah dibaca. Alert yang belum ditriase
+tetap tampil di explorer dan bisa dicari lewat filter status **Untriaged**,
+sehingga tidak ada data yang disembunyikan.
+
+**Bukti cakupan (untuk audit)**
+
+Panel **Triage Coverage** di Overview menghitung, untuk rentang waktu yang aktif:
+
+| Angka | Arti |
+|---|---|
+| `handled` | alert yang punya catatan penanganan (status selain untriaged) |
+| `total` | seluruh alert pada rentang itu, dihitung dari OpenSearch |
+| `coverage` | `handled / total` dalam persen |
+| `untriaged` | `total - handled`, yaitu alert tanpa catatan penanganan |
+| `open_7d` / `open_30d` | pekerjaan berstatus open yang berumur lebih dari 7 / 30 hari |
+
+Angka `untriaged` sengaja ditampilkan, bukan disembunyikan: auditor bisa
+membandingkannya langsung dengan total alert di Wazuh dan melihat bahwa
+selisihnya memang belum ditangani, bukan hilang.
+
+**Jejak pelaku**
+
+Kolom **Last action** di Alert Explorer menampilkan kapan dan oleh siapa status
+terakhir diubah (dari `alert_annotations.last_action_at` dan `last_action_by`).
+Setiap perubahan status juga tercatat di `ticket_events` dan `audit_logs`.
 
 **Label** (10 default dari `LabelSeeder`): True Positive, False Positive,
 Suspicious, Malware, Brute Force, Lateral Movement, Privilege Escalation, Data
@@ -265,6 +294,42 @@ Exfiltration, Policy Violation, Needs Escalation.
 Filter `status` dan `label` di explorer diterjemahkan menjadi batasan UID di
 query OpenSearch, jadi total dan paginasi tetap akurat (bukan hanya memfilter
 satu halaman).
+
+## Alert Groups
+
+Menu **Alert Groups** (`/alert-groups`) menyusun alert menjadi pohon tiga tingkat:
+
+```
+dc1            18.854 alerts · max L10 · 15 rules
+  rule 60137   Windows User Logoff      10.908 · L3
+    21 Oct 08:40:20 · L3 · Windows User Logoff (windows_eventchannel)
+    21 Oct 08:40:17 · L3 · ...
+  rule 60106   Windows Logon Success     3.186 · L3
+```
+
+- Tingkat 1: **agent** dengan total alert, level tertinggi, jumlah rule, campuran level, dan kapan terakhir terlihat.
+- Tingkat 2: **rule** di dalam agent tersebut, diurutkan berdasarkan volume. Menampilkan level tertinggi, distribusi level, dan tombol **Report**.
+- Tingkat 3: **log** terbaru untuk pasangan agent + rule itu, dimuat saat baris di-expand, dengan tautan ke detail alert di explorer.
+
+Filter: rentang waktu (15m/1h/24h/7d/30d/90d), agent, rule group, minimal level,
+dan pencarian teks rule. Semua data diambil langsung dari OpenSearch.
+
+**Report per grup rule**
+
+Tombol **Report** pada baris rule membuat tiket `incident` yang menyimpan kunci
+pengelompokan, bukan salinan alert:
+
+| Kolom | Isi |
+|---|---|
+| `group_agent` / `group_agents` | agent yang dicakup |
+| `group_rule_id` | id rule |
+| `group_window_from` / `group_window_to` | rentang waktu saat report dibuat |
+| `group_counted_at` | kapan hitungan terakhir dijalankan |
+
+Total alert dihitung **live** dari OpenSearch dengan filter
+`rule.id + agent.name + timestamp`, jadi halaman report selalu cocok dengan
+query langsung ke Wazuh. Report yang masih open untuk agent + rule + window yang
+sama tidak dibuat dua kali; pengguna diarahkan ke report yang sudah ada.
 
 ## Reports
 

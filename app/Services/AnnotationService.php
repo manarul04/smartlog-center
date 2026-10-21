@@ -66,6 +66,8 @@ class AnnotationService
             'status' => $data['status'] ?? $annotation->status ?? \App\Support\AlertStatus::NOT_REVIEWED,
             'assignee_id' => array_key_exists('assignee_id', $data) ? $data['assignee_id'] : $annotation->assignee_id,
             'ticket_id' => array_key_exists('ticket_id', $data) ? $data['ticket_id'] : $annotation->ticket_id,
+            'last_action_by' => auth()->id(),
+            'last_action_at' => now(),
         ]);
 
         $annotation->save();
@@ -108,6 +110,54 @@ class AnnotationService
     }
 
     /**
+     * Triage coverage for a window: how many alerts exist, how many carry a
+     * handling record, and how much open work has aged past a week or a month.
+     *
+     * Alerts with no annotation row are untriaged by definition, so they are
+     * counted as the difference against the alert total from OpenSearch.
+     *
+     * @return array{total: int, annotated: int, handled: int, untriaged: int, coverage: float, open_7d: int, open_30d: int}
+     */
+    public function triageCoverage(int $alertTotal, ?string $fromIso = null, ?string $toIso = null): array
+    {
+        $window = function ($query) use ($fromIso, $toIso) {
+            if ($fromIso !== null) {
+                $query->where('alert_timestamp', '>=', $fromIso);
+            }
+            if ($toIso !== null) {
+                $query->where('alert_timestamp', '<=', $toIso);
+            }
+
+            return $query;
+        };
+
+        $annotated = $window(AlertAnnotation::query())->count();
+
+        $handled = $window(AlertAnnotation::query())
+            ->where('status', '!=', \App\Support\AlertStatus::NOT_REVIEWED)
+            ->count();
+
+        $openKeys = \App\Support\AlertStatus::openKeys();
+
+        $openBefore = function (int $days) use ($openKeys) {
+            return AlertAnnotation::query()
+                ->whereIn('status', $openKeys)
+                ->where('alert_timestamp', '<', now()->subDays($days))
+                ->count();
+        };
+
+        return [
+            'total' => $alertTotal,
+            'annotated' => $annotated,
+            'handled' => $handled,
+            'untriaged' => max(0, $alertTotal - $annotated),
+            'coverage' => $alertTotal > 0 ? round($handled / $alertTotal * 100, 2) : 0.0,
+            'open_7d' => $openBefore(7),
+            'open_30d' => $openBefore(30),
+        ];
+    }
+
+    /**
      * Aggregate handling state for the dashboard, over a given alert UID set
      * or over all time when no set is supplied.
      */
@@ -141,10 +191,14 @@ class AnnotationService
      * push the constraint into the OpenSearch query instead of filtering only
      * the already-paginated page.
      *
+     * The window is passed through so the annotation query only reads rows from
+     * the period being displayed: without it, a busy install would load every
+     * annotation ever written into memory just to build an exclusion list.
+     *
      * Returns ['include' => [...]] or ['exclude' => [...]] or null when the
      * filter cannot be expressed (no annotations exist at all).
      */
-    public function uidConstraint(?string $status, ?int $labelId): ?array
+    public function uidConstraint(?string $status, ?int $labelId, ?string $fromIso = null, ?string $toIso = null): ?array
     {
         if (($status === null || $status === '') && ($labelId === null || $labelId === 0)) {
             return null;
@@ -152,14 +206,22 @@ class AnnotationService
 
         $query = AlertAnnotation::query();
 
+        if ($fromIso !== null) {
+            $query->where('alert_timestamp', '>=', $fromIso);
+        }
+
+        if ($toIso !== null) {
+            $query->where('alert_timestamp', '<=', $toIso);
+        }
+
         if ($labelId !== null && $labelId > 0) {
             $query->whereHas('labels', fn ($q) => $q->where('labels.id', $labelId));
         }
 
-        // "Not reviewed" means the alert has no annotation row at all, which is
-        // the complement of every annotated UID.
+        // "Untriaged" means the alert has no annotation row at all, which is the
+        // complement of every annotated UID in the window.
         if ($status === \App\Support\AlertStatus::NOT_REVIEWED) {
-            $annotated = AlertAnnotation::pluck('alert_uid')->all();
+            $annotated = $query->pluck('alert_uid')->all();
 
             return $annotated === [] ? null : ['exclude' => $annotated];
         }

@@ -355,6 +355,9 @@
                         <a class="btn sm" href="{{ route('explorer.index', ['q' => $report->group_rule_id, 'agent' => $report->group_agent, 'range' => '30d']) }}">
                             All alerts for this rule
                         </a>
+                        <a class="btn sm" href="{{ route('alert-groups.index', ['agent' => $report->group_agent, 'range' => '30d']) }}">
+                            Open in Alert Groups
+                        </a>
                     @endif
                     @if ($report->meta && ($report->meta['cve_id'] ?? null))
                         <a class="btn sm" target="_blank" rel="noopener noreferrer"

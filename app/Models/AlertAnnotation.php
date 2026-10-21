@@ -11,11 +11,13 @@ class AlertAnnotation extends Model
 {
     protected $fillable = [
         'alert_uid', 'alert_index', 'status', 'incident_id', 'ticket_id', 'assignee_id',
+        'last_action_by', 'last_action_at',
         'agent_name', 'rule_id', 'rule_description', 'rule_level', 'alert_timestamp',
     ];
 
     protected $casts = [
         'alert_timestamp' => 'datetime',
+        'last_action_at' => 'datetime',
         'rule_level' => 'integer',
     ];
 
@@ -43,6 +45,14 @@ class AlertAnnotation extends Model
     }
 
     /**
+     * Who changed this alert's handling state last, for audit trails.
+     */
+    public function lastActor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'last_action_by');
+    }
+
+    /**
      * Fetch annotations for a set of alert UIDs keyed by UID, for list views.
      */
     public static function forUids(array $uids): array
@@ -51,7 +61,7 @@ class AlertAnnotation extends Model
             return [];
         }
 
-        return static::with(['labels', 'assignee:id,name', 'ticket:id,reference,title'])
+        return static::with(['labels', 'assignee:id,name', 'ticket:id,reference,title', 'lastActor:id,name'])
             ->whereIn('alert_uid', $uids)
             ->get()
             ->keyBy('alert_uid')

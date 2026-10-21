@@ -6,6 +6,7 @@
         'Threat Management' => [
             ['route' => 'explorer.index', 'label' => 'Alert Explorer', 'icon' => 'M11 4a7 7 0 105.2 11.9L21 21M11 4a7 7 0 010 14'],
             ['route' => 'threats.index', 'label' => 'Threat Hunting', 'icon' => 'M12 3l8 4v6c0 4.5-3.4 7.6-8 8-4.6-.4-8-3.5-8-8V7l8-4z'],
+            ['route' => 'alert-groups.index', 'label' => 'Alert Groups', 'icon' => 'M4 6h16M4 12h10M4 18h7M17 15l3 3 3-3M20 18v4'],
         ],
         'Assets' => [
             ['route' => 'agents.index', 'label' => 'Agents & Health', 'icon' => 'M4 5h16v6H4zM4 13h16v6H4zM7 8h.01M7 16h.01'],

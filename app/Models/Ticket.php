@@ -13,7 +13,7 @@ class Ticket extends Model
      * reports, vulnerability reviews and configuration findings.
      */
     public const STATUSES = [
-        'not_reviewed' => ['label' => 'Not Reviewed', 'color' => '#64748b', 'open' => true, 'muted' => true],
+        'not_reviewed' => ['label' => 'Untriaged', 'color' => '#64748b', 'open' => true, 'muted' => true],
         'open' => ['label' => 'Open', 'color' => '#f43f5e', 'open' => true],
         'assigned' => ['label' => 'Assigned', 'color' => '#38bdf8', 'open' => true],
         'in_review' => ['label' => 'In Review', 'color' => '#fbbf24', 'open' => true],
@@ -102,7 +102,7 @@ class Ticket extends Model
 
     public static function statusLabel(?string $status): string
     {
-        return self::STATUSES[$status]['label'] ?? 'Not Reviewed';
+        return self::STATUSES[$status]['label'] ?? 'Untriaged';
     }
 
     public static function statusColor(?string $status): string

@@ -558,6 +558,28 @@ class AlertRepository
     }
 
     /**
+     * Total alerts in a window, used as the denominator for triage coverage.
+     */
+    public function countInRange(string $from, ?string $to = null): int
+    {
+        $must = [$this->timeRange($from)];
+
+        if ($to !== null) {
+            $must[] = ['range' => ['timestamp' => ['lte' => $to]]];
+        }
+
+        $body = [
+            'size' => 0,
+            'track_total_hits' => true,
+            'query' => ['bool' => ['must' => $must]],
+        ];
+
+        $raw = $this->client->searchUncached($this->alertsIndex(), $body);
+
+        return (int) ($raw['hits']['total']['value'] ?? 0);
+    }
+
+    /**
      * Count alerts that belong to an incident group: the same rule firing on
      * the tracked agents inside the incident's window.
      *
@@ -661,6 +683,197 @@ class AlertRepository
             'id' => $hit['_id'],
             'source' => $hit['_source'] ?? [],
         ])->all();
+    }
+
+    /**
+     * Agent → rule tree for the Alert Groups page.
+     *
+     * A composite aggregation is used instead of nested terms aggregations so
+     * the bucket count is not capped at the default 10k: each page returns a
+     * cursor (`after_key`) and the caller keeps fetching until it is empty.
+     *
+     * @return array{groups: array<int, array>, truncated: bool, took: int|null}
+     */
+    public function agentRuleGroups(array $filters, int $maxBuckets = 2000): array
+    {
+        $must = [$this->timeRange($filters['from'] ?? 'now-24h')];
+        $must = array_merge($must, $this->buildFilters($filters));
+
+        // Free-text search narrows the tree instead of filtering rendered rows,
+        // so counts and levels stay accurate for the matched subset.
+        $term = trim((string) ($filters['q'] ?? ''));
+
+        if ($term !== '') {
+            $must[] = ['bool' => [
+                'should' => [
+                    ['match_phrase' => ['rule.description' => $term]],
+                    ['term' => ['rule.id' => $term]],
+                    ['wildcard' => ['rule.description' => ['value' => '*' . $term . '*', 'case_insensitive' => true]]],
+                ],
+                'minimum_should_match' => 1,
+            ]];
+        }
+
+        $groups = [];
+        $after = null;
+        $truncated = false;
+        $took = null;
+        $fetched = 0;
+
+        do {
+            $composite = [
+                'size' => 500,
+                'sources' => [
+                    ['agent' => ['terms' => ['field' => 'agent.name', 'missing_bucket' => false]]],
+                    ['rule' => ['terms' => ['field' => 'rule.id', 'missing_bucket' => false]]],
+                ],
+            ];
+
+            if ($after !== null) {
+                $composite['after'] = $after;
+            }
+
+            $body = [
+                'size' => 0,
+                'track_total_hits' => false,
+                'query' => ['bool' => array_filter([
+                    'must' => $must,
+                    'must_not' => $this->buildMustNot($filters),
+                ])],
+                'aggs' => [
+                    'pairs' => [
+                        'composite' => $composite,
+                        'aggs' => [
+                            'max_level' => ['max' => ['field' => 'rule.level']],
+                            'levels' => ['terms' => ['field' => 'rule.level', 'size' => 20]],
+                            'first_seen' => ['min' => ['field' => 'timestamp']],
+                            'last_seen' => ['max' => ['field' => 'timestamp']],
+                            'rule' => [
+                                'top_hits' => [
+                                    'size' => 1,
+                                    'sort' => [['timestamp' => ['order' => 'desc']]],
+                                    '_source' => ['includes' => ['rule.description', 'rule.groups']],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ];
+
+            $raw = $this->client->searchUncached($this->alertsIndex(), $body);
+            $took = $raw['took'] ?? $took;
+
+            $bucketData = $raw['aggregations']['pairs'] ?? [];
+
+            foreach ($bucketData['buckets'] ?? [] as $bucket) {
+                $hit = $bucket['rule']['hits']['hits'][0]['_source']['rule'] ?? [];
+
+                $groups[] = [
+                    'agent' => (string) $bucket['key']['agent'],
+                    'rule_id' => (string) $bucket['key']['rule'],
+                    'rule_description' => $hit['description'] ?? null,
+                    'rule_groups' => $hit['groups'] ?? [],
+                    'count' => (int) $bucket['doc_count'],
+                    'max_level' => (int) round($bucket['max_level']['value'] ?? 0),
+                    'levels' => collect($bucket['levels']['buckets'] ?? [])
+                        ->map(fn ($l) => ['key' => (int) $l['key'], 'count' => (int) $l['doc_count']])
+                        ->sortKeysDesc()
+                        ->values()
+                        ->all(),
+                    'first_seen' => $bucket['first_seen']['value_as_string'] ?? null,
+                    'last_seen' => $bucket['last_seen']['value_as_string'] ?? null,
+                ];
+
+                $fetched++;
+            }
+
+            $after = $bucketData['after_key'] ?? null;
+
+            if ($fetched >= $maxBuckets) {
+                $truncated = $after !== null;
+                break;
+            }
+        } while ($after !== null);
+
+        return [
+            'groups' => $this->nestByAgent($groups),
+            'total_pairs' => count($groups),
+            'truncated' => $truncated,
+            'took' => $took,
+        ];
+    }
+
+    /**
+     * Fold flat agent+rule rows into one node per agent, rules sorted by volume
+     * so the busiest rule of each endpoint is the first thing an analyst sees.
+     */
+    private function nestByAgent(array $rows): array
+    {
+        $agents = [];
+
+        foreach ($rows as $row) {
+            $name = $row['agent'];
+
+            if (! isset($agents[$name])) {
+                $agents[$name] = [
+                    'agent' => $name,
+                    'count' => 0,
+                    'max_level' => 0,
+                    'rules' => 0,
+                    'last_seen' => null,
+                    'levels' => [],
+                    'rule_rows' => [],
+                ];
+            }
+
+            $agents[$name]['count'] += $row['count'];
+            $agents[$name]['rules']++;
+            $agents[$name]['max_level'] = max($agents[$name]['max_level'], $row['max_level']);
+
+            if ($row['last_seen'] !== null
+                && ($agents[$name]['last_seen'] === null || $row['last_seen'] > $agents[$name]['last_seen'])) {
+                $agents[$name]['last_seen'] = $row['last_seen'];
+            }
+
+            foreach ($row['levels'] as $level) {
+                $agents[$name]['levels'][$level['key']] =
+                    ($agents[$name]['levels'][$level['key']] ?? 0) + $level['count'];
+            }
+
+            $agents[$name]['rule_rows'][] = $row;
+        }
+
+        $result = [];
+
+        foreach ($agents as $agent) {
+            $rules = $agent['rule_rows'];
+            unset($agent['rule_rows']);
+
+            usort($rules, fn ($a, $b) => $b['count'] <=> $a['count']);
+
+            krsort($agent['levels']);
+
+            $agent['levels'] = collect($agent['levels'])
+                ->map(fn ($count, $level) => ['key' => (int) $level, 'count' => $count])
+                ->values()
+                ->all();
+
+            $agent['rule_rows'] = $rules;
+            $result[] = $agent;
+        }
+
+        usort($result, fn ($a, $b) => $b['count'] <=> $a['count']);
+
+        return $result;
+    }
+
+    /**
+     * Alerts for one agent + rule inside the window, newest first. Used when a
+     * rule row is expanded.
+     */
+    public function ruleAlerts(string $agent, string $ruleId, string $from, ?string $to = null, int $limit = 25): array
+    {
+        return $this->groupedAlerts([$agent], $ruleId, $from, $to, $limit);
     }
 
     public function searchText(array $filters, int $page = 1, int $perPage = 25): array

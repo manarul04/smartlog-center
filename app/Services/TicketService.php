@@ -82,6 +82,60 @@ class TicketService
     }
 
     /**
+     * Create an incident ticket that tracks one rule firing on one or more
+     * agents. Used by the Alert Groups page, where the analyst picks a whole
+     * rule group instead of a single alert.
+     */
+    public function createFromGroup(array $group): Ticket
+    {
+        $agents = array_values(array_unique(array_filter((array) ($group['agents'] ?? []))));
+
+        if ($agents === [] && ! empty($group['agent'])) {
+            $agents = [$group['agent']];
+        }
+
+        $from = Carbon::parse($group['window_from']);
+
+        $to = ! empty($group['window_to']) ? Carbon::parse($group['window_to']) : null;
+
+        return DB::transaction(function () use ($group, $agents, $from, $to) {
+            $ticket = Ticket::create([
+                'reference' => Ticket::nextReference(),
+                'type' => 'incident',
+                'title' => $group['title'] ?: mb_substr(
+                    (string) ($group['rule_description'] ?? 'Rule group'),
+                    0,
+                    200
+                ),
+                'description' => $group['description'] ?? null,
+                'status' => ($group['assignee_id'] ?? null) ? 'assigned' : 'open',
+                'priority' => $group['priority'] ?? 'high',
+                'severity' => isset($group['rule_level'])
+                    ? \App\Support\Severity::label((int) $group['rule_level'])
+                    : null,
+                'assignee_id' => $group['assignee_id'] ?? null,
+                'created_by' => auth()->id(),
+                'group_agent' => $group['agent'] ?? $agents[0] ?? null,
+                'group_agents' => count($agents) > 1 ? $agents : null,
+                'group_rule_id' => (string) $group['rule_id'],
+                'group_window_from' => $from,
+                'group_window_to' => $to,
+                'group_counted_at' => Carbon::now(),
+                'meta' => [
+                    'rule_description' => $group['rule_description'] ?? null,
+                    'rule_level' => $group['rule_level'] ?? null,
+                    'group_agents' => $agents,
+                    'source' => 'alert-groups',
+                ],
+            ]);
+
+            $this->log($ticket, 'created', null, $ticket->status, 'Reported from alert group');
+
+            return $ticket;
+        });
+    }
+
+    /**
      * Create a vulnerability ticket for one finding.
      */
     public function createFromVulnerability(array $finding, array $data): Ticket

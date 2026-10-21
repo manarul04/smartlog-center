@@ -43,6 +43,22 @@ class OverviewController extends Controller
 
         $triage = $this->annotations->statusBreakdown();
 
+        // Coverage is measured against the alerts that actually exist in the
+        // selected window, so the dashboard can show what is left untriaged.
+        $coverage = null;
+        if ($data !== null) {
+            try {
+                $from = \Illuminate\Support\Carbon::now()->subMinutes($this->rangeMinutes($range));
+                $coverage = $this->annotations->triageCoverage(
+                    (int) ($data['total'] ?? 0),
+                    $from->toIso8601String(),
+                    \Illuminate\Support\Carbon::now()->toIso8601String()
+                );
+            } catch (RuntimeException) {
+                // Supplementary; the dashboard still renders without it.
+            }
+        }
+
         // Latest high-severity activity and latest authentication failures.
         $latestCritical = [];
         $latestAuthFailures = [];
@@ -69,6 +85,7 @@ class OverviewController extends Controller
             'agentStatus' => $agentStatus,
             'bands' => Severity::bands(),
             'triage' => $triage,
+            'coverage' => $coverage,
             'statuses' => AlertStatus::all(),
             'openReports' => Ticket::open()->count(),
             'openIncidents' => Ticket::open()->where('type', 'incident')->count(),
@@ -92,5 +109,20 @@ class OverviewController extends Controller
         $ranges = config('opensearch.time_ranges');
 
         return isset($ranges[$range]) ? $range : '24h';
+    }
+
+    /**
+     * Preset range key to minutes, for the Postgres side of the coverage count.
+     */
+    private function rangeMinutes(string $range): int
+    {
+        return match ($range) {
+            '15m' => 15,
+            '1h' => 60,
+            '7d' => 60 * 24 * 7,
+            '30d' => 60 * 24 * 30,
+            '90d' => 60 * 24 * 90,
+            default => 60 * 24,
+        };
     }
 }

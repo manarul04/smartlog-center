@@ -1149,6 +1149,15 @@ mark {
 
 .modal-body { padding: 16px; max-height: 70vh; overflow-y: auto; }
 
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-surface-2);
+}
+
 [data-theme='light'] .modal-backdrop { background: rgba(15, 23, 42, 0.35); }
 
 @media (max-width: 640px) {
@@ -1318,6 +1327,87 @@ a.kpi.kpi-filter.active {
 .status-chip.is-muted::before {
   background: var(--text-muted);
   box-shadow: none;
+}
+
+/* ---------- Alert Groups tree ---------- */
+
+.group-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface-2);
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+.tree-table td { vertical-align: middle; }
+
+/* Aligns the Reset button with the labelled controls next to it. */
+.field-label-spacer {
+  font-size: 10.5px;
+  line-height: 1.2;
+  visibility: hidden;
+}
+
+.tree-agent { cursor: pointer; }
+.tree-agent:hover { background: var(--row-hover); }
+.tree-agent.is-open { background: var(--bg-surface-2); }
+
+.tree-caret {
+  display: inline-block;
+  width: 12px;
+  color: var(--text-muted);
+  font-size: 10px;
+  transition: transform 0.12s;
+}
+
+.tree-indent {
+  display: inline-block;
+  width: 18px;
+  border-left: 1px solid var(--border);
+  height: 14px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.tree-rule { cursor: pointer; }
+.tree-rule:hover { background: var(--row-hover); }
+.tree-rule.is-open { background: var(--bg-surface-2); }
+
+.tree-rule-title {
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.tree-rule-meta { margin-left: 40px; }
+
+.level-mix { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.level-pill {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+}
+
+.tree-alerts td { padding: 0 !important; background: var(--bg-root); }
+
+.tree-alert-body { padding: 10px 14px 12px 40px; }
+
+.tree-alert-list { background: transparent; }
+.tree-alert-list td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.tree-alert-list tr:last-child td { border-bottom: 0; }
+
+@media (max-width: 640px) {
+  .tree-rule-meta { margin-left: 0; }
+  .tree-alert-body { padding-left: 12px; }
+  .level-mix { display: none; }
 }
 
 /* ---------- Configuration page ---------- */
