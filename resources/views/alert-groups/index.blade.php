@@ -3,6 +3,10 @@
 @section('title', 'Alert Groups')
 @section('subtitle', 'Grouped by agent, then by rule')
 
+@section('breadcrumb')
+    <x-breadcrumb :items="[['label' => 'Alert Groups']]" />
+@endsection
+
 @section('content')
     @if ($error)
         <div class="banner error"><div><strong>Query failed.</strong> {{ $error }}</div></div>

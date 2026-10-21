@@ -3,6 +3,10 @@
 @section('title', 'Configuration')
 @section('subtitle', 'Wazuh indexer connection')
 
+@section('breadcrumb')
+    <x-breadcrumb :items="[['label' => 'Configuration']]" />
+@endsection
+
 @section('content')
     @php
         $isStored = fn (string $key) => in_array($key, $source, true);

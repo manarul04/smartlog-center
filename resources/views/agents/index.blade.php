@@ -3,6 +3,10 @@
 @section('title', 'Agents & Health')
 @section('subtitle', 'Endpoint inventory, availability and exposure')
 
+@section('breadcrumb')
+    <x-breadcrumb :items="[['label' => 'Agents & Health']]" />
+@endsection
+
 @section('content')
     @foreach ($warnings as $warning)
         <div class="banner warn"><div>{{ $warning }}</div></div>

@@ -3,8 +3,11 @@
 @section('title', $cve)
 @section('subtitle', 'Agents affected by this vulnerability')
 
-@section('actions')
-    <a href="{{ route('agents.index') }}" class="btn sm">&larr; Agents</a>
+@section('breadcrumb')
+    <x-breadcrumb :items="[
+        ['label' => 'Agents & Health', 'url' => route('agents.index')],
+        ['label' => $cve],
+    ]" />
 @endsection
 
 @section('content')

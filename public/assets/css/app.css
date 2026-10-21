@@ -308,10 +308,106 @@ a { color: inherit; text-decoration: none; }
 }
 
 .page-heading { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
-.page-title { font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
-.page-subtitle { font-size: 11.5px; color: var(--text-muted); }
+.page-title {
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.page-subtitle {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .topbar-spacer { flex: 1; }
+
+/* ---------- Page bar (breadcrumb + page actions) ---------- */
+
+.page-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: -4px 0 14px;
+  min-height: 30px;
+}
+
+.page-bar-trail { flex: 1; min-width: 0; }
+
+.page-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.breadcrumb { min-width: 0; }
+
+.breadcrumb ol {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex-wrap: wrap;
+}
+
+.breadcrumb li {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  min-width: 0;
+}
+
+.breadcrumb a,
+.breadcrumb span {
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 34ch;
+}
+
+.breadcrumb a:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.breadcrumb li:last-child span {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.crumb-sep {
+  width: 12px;
+  height: 12px;
+  color: var(--text-muted);
+  opacity: 0.6;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 640px) {
+  .page-bar { margin-top: 0; }
+  .page-bar-actions { width: 100%; margin-left: 0; }
+  .breadcrumb a, .breadcrumb span { max-width: 18ch; }
+
+  /* The top bar keeps only what is needed on a phone: the page name and the
+     account avatar. Everything else lives in the page bar below. */
+  #clock { display: none; }
+  .page-heading { flex: 1; }
+  .topbar .user-menu-name { display: none; }
+}
 
 .content { padding: 20px 22px 40px; flex: 1; }
 

@@ -3,6 +3,10 @@
 @section('title', 'Threat Hunting')
 @section('subtitle', 'MITRE ATT&CK coverage and technique hits')
 
+@section('breadcrumb')
+    <x-breadcrumb :items="[['label' => 'Threat Hunting']]" />
+@endsection
+
 @section('actions')
     <div class="seg">
         @foreach (['7d', '30d', '90d'] as $key)

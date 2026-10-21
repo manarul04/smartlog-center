@@ -3,8 +3,15 @@
 @section('title', 'SCA Checks · ' . $agent['name'])
 @section('subtitle', 'Configuration assessment results and remediation')
 
+@section('breadcrumb')
+    <x-breadcrumb :items="[
+        ['label' => 'Agents & Health', 'url' => route('agents.index')],
+        ['label' => $agent['name'], 'url' => route('agents.show', $agent['id'])],
+        ['label' => 'SCA Checks'],
+    ]" />
+@endsection
+
 @section('actions')
-    <a href="{{ route('agents.show', $agent['id']) }}" class="btn sm">&larr; Agent detail</a>
     <x-export-button :href="route('agents.sca.report', array_filter([
         'id' => $agent['id'],
         'range' => $range['key'],

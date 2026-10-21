@@ -3,6 +3,10 @@
 @section('title', 'Audit Log')
 @section('subtitle', 'Administrative and access activity')
 
+@section('breadcrumb')
+    <x-breadcrumb :items="[['label' => 'Audit Log']]" />
+@endsection
+
 @section('content')
     <div class="card">
         <form method="GET" action="{{ route('audit.index') }}">

@@ -1,6 +1,6 @@
 @auth
-    <div class="row" style="gap:8px; position:relative">
-        <div class="col" style="gap:0; align-items:flex-end; line-height:1.25">
+    <div class="row user-menu" style="gap:8px; position:relative">
+        <div class="col user-menu-name" style="gap:0; align-items:flex-end; line-height:1.25">
             <span style="font-size:12px;font-weight:600">{{ auth()->user()->name }}</span>
             <span class="fs-11 text-muted">{{ auth()->user()->roleLabel() }}</span>
         </div>

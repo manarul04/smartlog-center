@@ -44,10 +44,6 @@
 
             <div class="topbar-spacer"></div>
 
-            @hasSection('actions')
-                <div class="row">@yield('actions')</div>
-            @endif
-
             <div class="row" style="gap:10px">
                 <span class="fs-11 text-muted nowrap" id="clock"></span>
                 @include('partials.theme-toggle')
@@ -56,6 +52,21 @@
         </header>
 
         <main class="content">
+            @hasSection('breadcrumb')
+                <div class="page-bar">
+                    <div class="page-bar-trail">@yield('breadcrumb')</div>
+                    @hasSection('actions')
+                        <div class="page-bar-actions">@yield('actions')</div>
+                    @endif
+                </div>
+            @else
+                @hasSection('actions')
+                    <div class="page-bar">
+                        <div class="page-bar-trail"></div>
+                        <div class="page-bar-actions">@yield('actions')</div>
+                    </div>
+                @endif
+            @endif
             @if (session('status'))
                 <div class="banner" style="border-color:rgba(16,185,129,.35);background:var(--success-soft);color:var(--success-text)">
                     {{ session('status') }}

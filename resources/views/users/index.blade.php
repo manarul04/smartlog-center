@@ -3,6 +3,10 @@
 @section('title', 'User Management')
 @section('subtitle', 'Accounts and access levels')
 
+@section('breadcrumb')
+    <x-breadcrumb :items="[['label' => 'User Management']]" />
+@endsection
+
 @section('content')
     <div class="grid grid-3">
         <div class="card" style="grid-column: span 2">

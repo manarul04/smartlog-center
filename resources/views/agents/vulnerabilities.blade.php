@@ -3,9 +3,16 @@
 @section('title', 'Vulnerabilities · ' . $agent['name'])
 @section('subtitle', 'Findings detected on this endpoint')
 
+@section('breadcrumb')
+    <x-breadcrumb :items="[
+        ['label' => 'Agents & Health', 'url' => route('agents.index')],
+        ['label' => $agent['name'], 'url' => route('agents.show', $agent['id'])],
+        ['label' => 'Vulnerabilities'],
+    ]" />
+@endsection
+
 @section('actions')
     <a href="{{ route('reports.index', ['type' => 'vulnerability']) }}" class="btn sm">All reports</a>
-    <a href="{{ route('agents.show', $agent['id']) }}" class="btn sm">&larr; Agent detail</a>
     <x-export-button :href="route('agents.vulnerabilities.report', array_filter([
         'id' => $agent['id'],
         'range' => $range['key'],

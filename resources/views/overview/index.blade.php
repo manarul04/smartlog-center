@@ -3,6 +3,10 @@
 @section('title', 'Overview')
 @section('subtitle', 'Security posture at a glance')
 
+@section('breadcrumb')
+    <x-breadcrumb :items="[['label' => 'Overview']]" />
+@endsection
+
 @section('actions')
     <div class="seg">
         @foreach ($ranges as $key => $meta)

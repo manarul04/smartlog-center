@@ -3,8 +3,14 @@
 @section('title', $agent['name'] ?? 'Agent')
 @section('subtitle', 'Endpoint detail')
 
+@section('breadcrumb')
+    <x-breadcrumb :items="[
+        ['label' => 'Agents & Health', 'url' => route('agents.index')],
+        ['label' => $agent['name'] ?? 'Agent'],
+    ]" />
+@endsection
+
 @section('actions')
-    <a href="{{ route('agents.index') }}" class="btn sm">← All agents</a>
     @if ($agent)
         <x-export-button modal>Export PDF</x-export-button>
     @endif
@@ -209,22 +215,79 @@
             </div>
 
             @if (($inventory['hotfixes']['total'] ?? 0) > 0)
+                @php
+                    // "Resolved" covers both a real title and an article the
+                    // catalog does not list; only never-looked-up rows remain.
+                    $kbResolved = collect($kbTitles)->filter(fn ($t) => $t['status'] !== 'pending')->count();
+                @endphp
                 <div class="tab-panel" data-sw-panel="hotfixes" style="display:none">
-                    <div class="card-body">
-                        <div class="row wrap" style="gap:6px">
-                            @foreach ($inventory['hotfixes']['items'] as $kb)
-                                <span class="badge neutral mono">{{ $kb }}</span>
-                            @endforeach
+                    <div class="toolbar" style="border-top:none">
+                        <div class="field" style="flex:1;min-width:180px">
+                            <label for="kbSearch">Filter</label>
+                            <input id="kbSearch" class="input" placeholder="KB number or title…" autocomplete="off">
+                        </div>
+                        <div class="field" style="flex:0 0 auto">
+                            <label>&nbsp;</label>
+                            <button type="button" class="btn sm" id="kbResolveAll"
+                                    data-endpoint="{{ route('agents.kb-titles', $agent['id']) }}"
+                                    @if (count($kbPending) === 0) disabled @endif>
+                                Load all titles
+                            </button>
                         </div>
                     </div>
-                    @if ($inventory['hotfixes']['total'] > count($inventory['hotfixes']['items']))
-                        <div class="pager" style="border-top:1px solid var(--border)">
-                            <span>
-                                Showing {{ number_format(count($inventory['hotfixes']['items'])) }} of
-                                {{ number_format($inventory['hotfixes']['total']) }} installed updates.
-                            </span>
-                        </div>
-                    @endif
+
+                    <div class="table-wrap">
+                        <table class="data" id="kbTable">
+                            <thead>
+                                <tr>
+                                    <th style="width:120px">KB</th>
+                                    <th>Title</th>
+                                    <th style="width:180px">Product</th>
+                                    <th style="width:110px">Released</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($inventory['hotfixes']['items'] as $kb)
+                                    @php
+                                        $entry = $kbTitles[$kb] ?? null;
+                                        $title = $entry['title'] ?? null;
+                                        $url = $entry['url'] ?? 'https://support.microsoft.com/help/' . preg_replace('/\D+/', '', $kb);
+                                    @endphp
+                                    <tr data-kb-row data-kb="{{ $kb }}"
+                                        data-search="{{ strtolower($kb . ' ' . ($title ?? '') . ' ' . ($entry['product'] ?? '')) }}">
+                                        <td class="mono fs-11">
+                                            <a href="{{ $url }}" target="_blank" rel="noopener">{{ $kb }}</a>
+                                        </td>
+                                        <td class="wrap" data-kb-title>
+                                            @if ($title)
+                                                {{ $title }}
+                                            @elseif (($entry['status'] ?? null) === 'not_found')
+                                                <span class="text-muted">No catalog title for this article</span>
+                                            @else
+                                                <span class="text-muted" data-kb-pending>Loading title…</span>
+                                            @endif
+                                        </td>
+                                        <td class="fs-11 text-secondary" data-kb-product title="{{ $entry['product'] ?? '' }}">
+                                            {{ !empty($entry['product']) ? \Illuminate\Support\Str::limit($entry['product'], 42) : '—' }}
+                                        </td>
+                                        <td class="fs-11 text-secondary nowrap" data-kb-date>
+                                            {{ !empty($entry['date']) ? \Illuminate\Support\Carbon::createFromTimestamp($entry['date'])->format('d M Y') : '—' }}
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="pager" style="border-top:1px solid var(--border)">
+                        <span>
+                            <span id="kbCachedCount">{{ number_format($kbResolved) }}</span> of
+                            {{ number_format($inventory['hotfixes']['total']) }} resolved.
+                            @if ($inventory['hotfixes']['total'] > count($inventory['hotfixes']['items']))
+                                Showing {{ number_format(count($inventory['hotfixes']['items'])) }} installed updates.
+                            @endif
+                        </span>
+                    </div>
                 </div>
             @endif
         </div>
@@ -395,6 +458,131 @@
 
     if (search) search.addEventListener('input', apply);
     if (typeFilter) typeFilter.addEventListener('change', apply);
+})();
+
+// ---- Windows KB titles: fill in missing ones after the page is on screen ---
+(function () {
+    var button = document.getElementById('kbResolveAll');
+    var table = document.getElementById('kbTable');
+
+    if (!button || !table) {
+        return;
+    }
+
+    var endpoint = button.getAttribute('data-endpoint');
+    var token = document.querySelector('meta[name="csrf-token"]');
+    var cachedCounter = document.getElementById('kbCachedCount');
+    var search = document.getElementById('kbSearch');
+    var running = false;
+
+    function pendingRows() {
+        return Array.prototype.slice.call(table.querySelectorAll('[data-kb-pending]'))
+            .map(function (node) { return node.closest('[data-kb-row]'); })
+            .filter(Boolean);
+    }
+
+    function applyFilter() {
+        var q = (search && search.value ? search.value : '').toLowerCase().trim();
+
+        table.querySelectorAll('[data-kb-row]').forEach(function (row) {
+            var matches = !q || (row.getAttribute('data-search') || '').indexOf(q) !== -1;
+            row.style.display = matches ? '' : 'none';
+        });
+    }
+
+    function fill(row, entry) {
+        if (entry.title) {
+            row.setAttribute('data-search', (row.getAttribute('data-search') || '') + ' ' + entry.title + ' ' + (entry.product || ''));
+        }
+
+        var titleCell = row.querySelector('[data-kb-title]');
+        if (titleCell) {
+            if (entry.title) {
+                titleCell.textContent = entry.title;
+            } else if (entry.status === 'pending') {
+                // Not looked up yet (the batch limit stopped before this row).
+                titleCell.innerHTML = '<span class="text-muted" data-kb-pending>Loading title…</span>';
+            } else {
+                titleCell.innerHTML = '<span class="text-muted">No catalog title for this article</span>';
+            }
+        }
+
+        var productCell = row.querySelector('[data-kb-product]');
+        if (productCell && entry.product) {
+            productCell.textContent = entry.product.length > 42
+                ? entry.product.slice(0, 42) + '…'
+                : entry.product;
+            productCell.title = entry.product;
+        }
+
+        var dateCell = row.querySelector('[data-kb-date]');
+        if (dateCell && entry.date) {
+            dateCell.textContent = new Date(entry.date * 1000)
+                .toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+    }
+
+    function bumpCached() {
+        if (!cachedCounter) return;
+        var current = parseInt(cachedCounter.textContent.replace(/\D/g, ''), 10) || 0;
+        cachedCounter.textContent = String(current + 1);
+    }
+
+    function batch(loop) {
+        if (running) return;
+        running = true;
+
+        fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': token ? token.getAttribute('content') : '',
+                'Accept': 'application/json'
+            },
+            credentials: 'same-origin'
+        })
+            .then(function (response) { return response.ok ? response.json() : null; })
+            .then(function (payload) {
+                if (!payload || !payload.titles) return;
+
+                Object.keys(payload.titles).forEach(function (kb) {
+                    var row = table.querySelector('[data-kb-row][data-kb="' + kb + '"]');
+                    if (!row) return;
+
+                    var wasPending = !!row.querySelector('[data-kb-pending]');
+                    fill(row, payload.titles[kb]);
+                    if (wasPending && payload.titles[kb].status !== 'pending') bumpCached();
+                });
+
+                applyFilter();
+
+                if (loop && payload.remaining > 0 && pendingRows().length > 0) {
+                    running = false;
+                    batch(true);
+                } else {
+                    running = false;
+                    if (pendingRows().length === 0) {
+                        button.disabled = true;
+                    }
+                }
+            })
+            .catch(function () {
+                running = false;
+            });
+    }
+
+    if (search) search.addEventListener('input', applyFilter);
+
+    button.addEventListener('click', function () {
+        button.disabled = true;
+        button.textContent = 'Loading…';
+        batch(true);
+    });
+
+    // Nothing is fetched during render. One small batch on open covers the KBs
+    // this visitor is looking at; the button drains the rest on demand.
+    if (pendingRows().length > 0) {
+        batch(false);
+    }
 })();
 </script>
 @endif

@@ -3,8 +3,11 @@
 @section('title', $report->reference . ' · ' . $report->title)
 @section('subtitle', \App\Models\Ticket::typeLabel($report->type) . ' report')
 
-@section('actions')
-    <a href="{{ route('reports.index') }}" class="btn sm">&larr; Reports</a>
+@section('breadcrumb')
+    <x-breadcrumb :items="[
+        ['label' => 'Reports', 'url' => route('reports.index')],
+        ['label' => $report->reference],
+    ]" />
 @endsection
 
 @section('content')

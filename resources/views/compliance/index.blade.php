@@ -3,6 +3,10 @@
 @section('title', 'Compliance')
 @section('subtitle', 'Regulatory control coverage')
 
+@section('breadcrumb')
+    <x-breadcrumb :items="[['label' => 'Compliance']]" />
+@endsection
+
 @section('actions')
     <div class="seg">
         @foreach (['7d', '30d', '90d'] as $key)

@@ -3,6 +3,10 @@
 @section('title', 'Alert Explorer')
 @section('subtitle', 'Search and triage security events')
 
+@section('breadcrumb')
+    <x-breadcrumb :items="[['label' => 'Alert Explorer']]" />
+@endsection
+
 @section('actions')
     <x-export-button :href="route('explorer.report', collect(request()->query())->except(['sort', 'dir', 'page'])->all())"
                      title="Export these filters as a PDF report" />

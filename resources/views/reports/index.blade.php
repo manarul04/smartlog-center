@@ -3,6 +3,10 @@
 @section('title', 'Reports')
 @section('subtitle', 'Central queue for incidents, vulnerabilities and SCA findings')
 
+@section('breadcrumb')
+    <x-breadcrumb :items="[['label' => 'Reports']]" />
+@endsection
+
 @section('content')
     <div class="grid grid-4" style="margin-bottom:14px">
         <a class="kpi" style="--kpi-accent:var(--accent)"
