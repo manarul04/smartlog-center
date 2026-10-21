@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Sign in Â· {{ config('app.name') }}</title>
+    <title>Sign in · {{ config('app.name') }}</title>
     @include('partials.favicon')
     <script>
         // Resolve the theme before first paint so the sign-in screen does not

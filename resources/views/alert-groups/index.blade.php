@@ -129,9 +129,7 @@
                                         <span class="mono fs-11 text-secondary">rule {{ $rule['rule_id'] }}</span>
                                         <span class="tree-rule-title">{{ $rule['rule_description'] ?: 'Unknown rule' }}</span>
                                         @if (!empty($rule['rule_groups']))
-                                            <div class="fs-11 text-muted tree-rule-meta">
-                                                {{ implode(', ', array_slice($rule['rule_groups'], 0, 4)) }}
-                                            </div>
+                                            <span class="fs-11 tree-rule-meta">· {{ implode(', ', array_slice($rule['rule_groups'], 0, 3)) }}</span>
                                         @endif
                                     </td>
                                     <td class="num mono">{{ number_format($rule['count']) }}</td>
@@ -173,6 +171,8 @@
             </div>
         @endif
     </div>
+
+    @include('partials.alert-drawer', ['users' => $users, 'options' => ['agents' => $options['agents'] ?? []]])
 
     @can('triage')
         <div class="modal-backdrop" id="reportModal" style="display:none">
@@ -347,17 +347,15 @@
                 data.items.forEach(function (item) {
                     var ts = item.timestamp ? new Date(item.timestamp) : null;
                     var when = ts ? ts.toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
-                    var link = @json(route('explorer.index')) + '?range=' + encodeURIComponent(rangeKey)
-                        + '&alert=' + encodeURIComponent(item.id || '')
-                        + '&index=' + encodeURIComponent(item.index || '');
 
-                    html += '<tr>'
+                    html += '<tr class="alert-row" data-index="' + escapeHtml(item.index || '') + '"'
+                        + ' data-id="' + escapeHtml(item.id || '') + '" tabindex="0" role="button"'
+                        + ' aria-label="Open alert detail">'
                         + '<td class="mono fs-11 text-secondary nowrap" style="width:150px">' + escapeHtml(when) + '</td>'
                         + '<td style="width:60px"><span class="badge ' + levelToken(item.level) + '">' + item.level + '</span></td>'
                         + '<td class="wrap">' + escapeHtml(item.description || '—')
                         + '<div class="fs-11 text-muted">' + escapeHtml(item.decoder || '') + (item.location ? ' · ' + escapeHtml(item.location) : '') + '</div>'
                         + '</td>'
-                        + '<td style="width:120px"><a class="link-strong fs-11" href="' + link + '">Open</a></td>'
                         + '</tr>';
                 });
 
@@ -440,6 +438,25 @@
             closeModal();
         }
     });
+
+    // ---- Alert rows open the shared detail drawer -------------------------
+    document.addEventListener('click', function (event) {
+        var row = event.target.closest('.alert-row');
+        if (!row || !window.AlertDrawer) return;
+
+        window.AlertDrawer.open(row.getAttribute('data-index'), row.getAttribute('data-id'));
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+
+        var row = event.target.closest && event.target.closest('.alert-row');
+        if (!row || !window.AlertDrawer) return;
+
+        event.preventDefault();
+        window.AlertDrawer.open(row.getAttribute('data-index'), row.getAttribute('data-id'));
+    });
 })();
 </script>
+@include('partials.alert-drawer-script')
 @endpush

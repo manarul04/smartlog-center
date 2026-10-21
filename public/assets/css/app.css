@@ -735,6 +735,13 @@ mark {
 
 .form-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 .form-row label { font-size: 11.5px; font-weight: 600; color: var(--text-secondary); }
+
+/* Group labels (checkbox pickers) are not tied to a single control. */
+.form-row .form-row-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
 .form-row .input, .form-row .select { width: 100%; }
 
 .check-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); }
@@ -1380,21 +1387,61 @@ a.kpi.kpi-filter.active {
   margin-left: 6px;
   font-size: 12px;
   color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
+  max-width: calc(100% - 150px);
+  vertical-align: middle;
 }
 
-.tree-rule-meta { margin-left: 40px; }
+/* A single line box keeps agent rows and rule rows the same height, so the
+   level and last-seen columns line up across the tree. */
+.tree-table td { line-height: 1.45; }
 
-.level-mix { display: flex; flex-wrap: wrap; gap: 4px; }
+/* The Report button must not make rule rows taller than agent rows. */
+.tree-table .btn.sm {
+  min-height: 22px;
+  padding: 1px 9px;
+  line-height: 1.3;
+}
+
+/* Rule groups sit on the same line as the title, so an agent row and its rule
+   rows keep an identical height and the level column never looks misaligned. */
+.tree-rule-meta {
+  margin-left: 6px;
+  color: var(--text-muted);
+}
+
+.level-mix {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  overflow: hidden;
+}
 
 .level-pill {
   font-family: var(--mono);
   font-size: 10px;
-  padding: 1px 5px;
+  line-height: 1.5;
+  padding: 0 5px;
   border-radius: 4px;
   border: 1px solid var(--border);
   color: var(--text-secondary);
   background: var(--bg-elevated);
+  white-space: nowrap;
 }
+
+/* Agent and rule cells stay on one line so every row is the same height. */
+.tree-agent td:first-child,
+.tree-rule td:first-child {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 0;
+}
+
+.tree-agent td:first-child { width: 46%; }
+.tree-rule td:first-child { width: 46%; }
 
 .tree-alerts td { padding: 0 !important; background: var(--bg-root); }
 
@@ -1404,10 +1451,34 @@ a.kpi.kpi-filter.active {
 .tree-alert-list td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
 .tree-alert-list tr:last-child td { border-bottom: 0; }
 
+/* Alert rows are clickable: the whole row opens the detail drawer. */
+.tree-alert-list tr.alert-row { cursor: pointer; }
+.tree-alert-list tr.alert-row:hover { background: var(--row-hover); }
+.tree-alert-list tr.alert-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 @media (max-width: 640px) {
-  .tree-rule-meta { margin-left: 0; }
+  .tree-rule-meta { display: none; }
   .tree-alert-body { padding-left: 12px; }
   .level-mix { display: none; }
+
+  /* Narrow screens hide the level mix, so the name column can wrap instead of
+     truncating the rule id down to an unreadable stub. */
+  .tree-agent td:first-child,
+  .tree-rule td:first-child {
+    white-space: normal;
+    max-width: none;
+    width: auto;
+  }
+
+  .tree-rule-title {
+    display: block;
+    margin-left: 40px;
+    max-width: none;
+    white-space: normal;
+  }
 }
 
 /* ---------- Configuration page ---------- */
