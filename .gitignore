@@ -18,3 +18,8 @@ yarn-error.log
 /.fleet
 /.idea
 /.vscode
+
+# Upgrade runner state and logs (see skill laravel-upgrade).
+# .upgrade-targets.txt and .upgrade-pdf.txt are committed - they are project
+# config, not state.
+/.upgrade/

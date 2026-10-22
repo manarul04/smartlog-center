@@ -1,0 +1,9 @@
+# PDF exports the upgrade gate (G8) fetches after logging in.
+#
+# One path per line. Each response must start with %PDF.
+# Delete this file if the project has no PDF export.
+
+/explorer/report
+/agents/001/report
+/agents/001/vulnerabilities/report
+/agents/001/sca/report

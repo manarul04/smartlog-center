@@ -1,0 +1,19 @@
+# Pages the upgrade gate (G6) fetches after logging in.
+#
+# One path per line. Comments and blank lines are ignored.
+# Every path must return 200 for a signed-in user. Paths are appended to APP_URL,
+# so the host in APP_URL must match the one you actually serve - TrustHosts
+# rejects a mismatch with 400.
+#
+# Keep this list short and stable: it is a smoke test, not a crawl.
+
+/
+/explorer
+/reports
+/agents
+/threats
+/alert-groups
+/compliance
+/audit
+/users
+/config
