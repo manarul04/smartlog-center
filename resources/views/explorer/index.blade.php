@@ -8,6 +8,7 @@
 @endsection
 
 @section('actions')
+    <x-alert-help context="explorer" />
     <x-export-button :href="route('explorer.report', collect(request()->query())->except(['sort', 'dir', 'page'])->all())"
                      title="Export these filters as a PDF report" />
 @endsection
@@ -118,6 +119,15 @@
                 @if ($filters['mitre'])
                     <input type="hidden" name="mitre" value="{{ $filters['mitre'] }}">
                 @endif
+                @if ($filters['mitre_tactic'])
+                    <input type="hidden" name="mitre_tactic" value="{{ $filters['mitre_tactic'] }}">
+                @endif
+                @if ($filters['decoder'] ?? null)
+                    <input type="hidden" name="decoder" value="{{ $filters['decoder'] }}">
+                @endif
+                @if ($filters['rule_id'] ?? null)
+                    <input type="hidden" name="rule_id" value="{{ $filters['rule_id'] }}">
+                @endif
                 @if ($filters['compliance_field'])
                     <input type="hidden" name="compliance_field" value="{{ $filters['compliance_field'] }}">
                     <input type="hidden" name="compliance_value" value="{{ $filters['compliance_value'] }}">
@@ -129,11 +139,20 @@
                 </div>
             </div>
 
-            @if ($filters['mitre'] || $filters['compliance_field'])
+            @if ($filters['mitre'] || $filters['mitre_tactic'] || $filters['compliance_field'] || ($filters['decoder'] ?? null) || ($filters['rule_id'] ?? null))
                 <div class="toolbar" style="border-top:1px solid var(--border);background:var(--bg-root)">
                     <span class="fs-11 text-muted">Active filters:</span>
                     @if ($filters['mitre'])
                         <span class="badge neutral">MITRE {{ $filters['mitre'] }}</span>
+                    @endif
+                    @if ($filters['mitre_tactic'])
+                        <span class="badge neutral">Tactic {{ $filters['mitre_tactic'] }}</span>
+                    @endif
+                    @if ($filters['decoder'] ?? null)
+                        <span class="badge neutral">Decoder {{ $filters['decoder'] }}</span>
+                    @endif
+                    @if ($filters['rule_id'] ?? null)
+                        <span class="badge neutral">Rule {{ $filters['rule_id'] }}</span>
                     @endif
                     @if ($filters['compliance_field'])
                         <span class="badge neutral">{{ $filters['compliance_field'] }} = {{ $filters['compliance_value'] }}</span>

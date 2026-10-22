@@ -20,8 +20,10 @@
     <php>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_URL" value="http://localhost"/>
+        <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
-        <env name="CACHE_DRIVER" value="array"/>
+        <env name="BROADCAST_CONNECTION" value="null"/>
+        <env name="CACHE_STORE" value="array"/>
         <!-- Tests get their own database: RefreshDatabase wipes whatever it points at. -->
         <env name="DB_DATABASE" value="wazuh_logging_test"/>
         <env name="MAIL_MAILER" value="array"/>

@@ -1,0 +1,63 @@
+# Compose Specification (tanpa `version:` — sudah obsolete di Compose v2).
+#
+# Indexer Wazuh/OpenSearch TIDAK ikut di sini: itu infrastruktur yang sudah ada.
+# Container hanya perlu bisa routing ke alamat OPENSEARCH_HOST di .env.
+
+services:
+  app:
+    build: .
+    ports:
+      - "8124:80"
+    # Sengaja TIDAK ada `env_file:` dan TIDAK ada override DB_*.
+    # AppServiceProvider::applyEnvFile() membaca .env mentah setiap request dan
+    # menimpa config database.* dari situ, jadi variabel yang disuntik Compose
+    # akan selalu kalah. Satu-satunya sumber kebenaran adalah file yang di-mount
+    # di bawah, dan default-nya .env.docker yang sudah berisi DB_HOST=postgres.
+    # `env_file:` juga berbahaya karena Laravel memakai Dotenv immutable — nilai
+    # lama akan menang atas tulisan wizard.
+    volumes:
+      # Writable on purpose: setup wizard menulis ulang .env dan menjalankan
+      # migrate di tengah request. File sumber harus ada sebelum `up`, kalau
+      # tidak Docker membuat direktori bernama .env di host.
+      #
+      # Default .env.docker (committed) supaya `up` jalan tanpa edit manual.
+      # ENV_FILE tetap bisa menunjuk .env host (mis. .env Laragon dengan
+      # DB_HOST=127.0.0.1). Target di container selalu .env karena aplikasi
+      # membaca path itu.
+      - ${ENV_FILE:-.env.docker}:/var/www/html/.env
+      # Menyimpan storage/framework/app-key yang dibuat saat boot pertama.
+      # Kalau volume ini hilang, nilai terenkripsi di DB tidak bisa dibaca.
+      - app-storage:/var/www/html/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      # Prefix DOCKER_DB_* sengaja dipakai, bukan DB_* dan bukan POSTGRES_*:
+      # compose melakukan interpolasi dari .env di root project, jadi nama apa
+      # pun yang sudah ada di sana (DB_PASSWORD=postgre di .env Laragon) akan
+      # menimpa nilai di bawah dan membuat password container beda dengan yang
+      # dibaca aplikasi dari .env.docker. DOCKER_DB_* tidak dipakai file lain.
+      # Default di bawah sama dengan .env.docker; override untuk DB yang bisa
+      # dijangkau dari network.
+      POSTGRES_DB: ${DOCKER_DB_NAME:-wazuh_logging}
+      POSTGRES_USER: ${DOCKER_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DOCKER_DB_PASSWORD:-postgres}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Tanpa ports: 5432 tetap privat. Buka hanya untuk debugging dengan client lokal.
+    healthcheck:
+      # $$ menjaga variabel tetap literal sehingga diekspansi di dalam container.
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  app-storage:

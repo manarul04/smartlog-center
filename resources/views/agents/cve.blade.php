@@ -140,7 +140,6 @@
                                 </td>
                             </tr>
                         @empty
-                        @empty
                             <tr>
                                 <td colspan="6" class="empty">
                                     <x-empty-icon name="shield" />

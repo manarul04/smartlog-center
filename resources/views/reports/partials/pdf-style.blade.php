@@ -134,6 +134,7 @@
     .pill.medium { background: #ca8a04; }
     .pill.low { background: #0284c7; }
     .pill.info { background: #64748b; }
+    .pill.success { background: #10b981; }
 
     .status {
         display: inline-block;

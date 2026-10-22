@@ -175,6 +175,35 @@
                 </div>
             </div>
 
+            @if (!empty($compliance))
+                <div class="card">
+                    <div class="card-head">
+                        <h3>Compliance</h3>
+                        <div class="spacer"></div>
+                        <span class="sub">mapped from rule {{ $report->group_rule_id }}</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="compliance-chips" id="reportCompliance"
+                             data-compliance-catalogue="{{ json_encode(\App\Support\Compliance::catalogue(), JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP) }}"
+                             data-compliance-target="reportComplianceDetail">
+                            @foreach ($compliance as $framework => $codes)
+                                <div style="margin-bottom:10px">
+                                    <div class="fs-11 text-muted" style="margin-bottom:4px">{{ $framework }}</div>
+                                    <div class="row wrap" style="gap:4px">
+                                        @foreach ($codes as $code)
+                                            <button type="button" class="badge neutral mono compliance-chip"
+                                                    data-framework="{{ $framework }}"
+                                                    data-code="{{ $code }}">{{ $code }}</button>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                        <div class="compliance-detail" id="reportComplianceDetail" style="display:none" aria-live="polite"></div>
+                    </div>
+                </div>
+            @endif
+
             @if ($items->isNotEmpty())
                 <div class="card">
                     <div class="card-head">
@@ -225,7 +254,6 @@
                                     <th>Rule</th>
                                     <th style="width:110px">Agent</th>
                                     <th style="width:130px">Decoder</th>
-                                    <th style="width:50px"></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -234,7 +262,12 @@
                                         $gs = $ga['source'];
                                         $glvl = (int) ($gs['rule']['level'] ?? 0);
                                     @endphp
-                                    <tr>
+                                    <tr class="row-clickable"
+                                        data-alert="{{ json_encode([
+                                            'index' => $ga['index'],
+                                            'id' => $ga['id'],
+                                            'uid' => $gs['id'] ?? null,
+                                        ], JSON_HEX_APOS | JSON_HEX_QUOT) }}">
                                         <td class="mono fs-11 text-secondary nowrap">
                                             {{ isset($gs['timestamp']) ? \Illuminate\Support\Carbon::parse($gs['timestamp'])->format('d M H:i:s') : '—' }}
                                         </td>
@@ -242,12 +275,6 @@
                                         <td class="wrap">{{ \Illuminate\Support\Str::limit($gs['rule']['description'] ?? '—', 85) }}</td>
                                         <td class="fs-12">{{ $gs['agent']['name'] ?? '—' }}</td>
                                         <td class="mono fs-11 text-secondary">{{ $gs['decoder']['name'] ?? '—' }}</td>
-                                        <td>
-                                            <a class="btn ghost sm"
-                                               href="{{ route('explorer.index', ['q' => $gs['rule']['id'] ?? '', 'agent' => $gs['agent']['name'] ?? '', 'range' => '30d', 'alert' => $gs['id'] ?? '']) }}">
-                                                Open
-                                            </a>
-                                        </td>
                                     </tr>
                                 @endforeach
                             </tbody>
@@ -296,6 +323,35 @@
 
         <div class="col side-panel">
             @can('triage')
+                <div class="card">
+                    <div class="card-head">
+                        <h3>Status</h3>
+                        <div class="spacer"></div>
+                        <span class="status-chip {{ \App\Models\Ticket::isUnreviewed($report->status) ? 'is-muted' : '' }}"
+                              style="--chip:{{ \App\Models\Ticket::statusColor($report->status) }}">
+                            {{ \App\Models\Ticket::statusLabel($report->status) }}
+                        </span>
+                    </div>
+                    <form method="POST" action="{{ route('reports.status', $report) }}">
+                        @csrf
+                        <div class="card-body col">
+                            <div class="form-row">
+                                <label for="quick-status">New status</label>
+                                <select id="quick-status" name="status" class="select" required>
+                                    @foreach ($statuses as $key => $meta)
+                                        <option value="{{ $key }}" @selected($report->status === $key)>{{ $meta['label'] }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="form-row">
+                                <label for="quick-status-note">Note</label>
+                                <input id="quick-status-note" name="note" class="input" placeholder="Reason (optional)">
+                            </div>
+                            <button type="submit" class="btn primary sm">Update status</button>
+                        </div>
+                    </form>
+                </div>
+
                 <div class="card">
                     <div class="card-head"><h3>Update Report</h3></div>
                     <form method="POST" action="{{ route('reports.update', $report) }}">
@@ -373,4 +429,11 @@
             </div>
         </div>
     </div>
+
+    {{-- Same drawer the Alert Explorer uses, so an alert opens in place. --}}
+    @include('partials.alert-drawer', ['users' => $users, 'options' => ['agents' => []]])
 @endsection
+
+@push('scripts')
+    @include('partials.alert-drawer-script')
+@endpush

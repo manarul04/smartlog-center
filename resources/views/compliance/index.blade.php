@@ -36,7 +36,11 @@
         </div>
 
         @foreach ($data as $key => $framework)
-            @php $maxCount = collect($framework['controls'])->max('count') ?: 1; @endphp
+            @php
+                $maxCount = collect($framework['controls'])->max('count') ?: 1;
+                $catalogKeys = ['pci_dss' => 'PCI DSS', 'hipaa' => 'HIPAA', 'gdpr' => 'GDPR', 'nist_800_53' => 'NIST 800-53', 'tsc' => 'TSC'];
+                $catalogKey = $catalogKeys[$key] ?? $framework['label'];
+            @endphp
             <div class="tab-panel" data-panel="{{ $key }}" @if (!$loop->first) style="display:none" @endif>
                 <div class="grid grid-3" style="margin-bottom:14px">
                     <div class="kpi" style="--kpi-accent:var(--accent)">
@@ -77,7 +81,25 @@
                             <tbody>
                                 @forelse ($framework['controls'] as $control)
                                     <tr>
-                                        <td class="mono">{{ $control['control'] }}</td>
+                                        <td>
+                                            <button type="button"
+                                                    class="control-code"
+                                                    data-control="{{ json_encode([
+                                                        'framework' => $catalogKey,
+                                                        'framework_label' => $framework['label'],
+                                                        'code' => $control['control'],
+                                                        'count' => (int) $control['count'],
+                                                        'max_level' => (int) $control['max_level'],
+                                                        'last_seen' => $control['last_seen'],
+                                                        'drill' => route('explorer.index', [
+                                                            'compliance_field' => config("opensearch.compliance_frameworks.{$key}.field"),
+                                                            'compliance_value' => $control['control'],
+                                                            'range' => $range,
+                                                        ]),
+                                                    ], JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP) }}">
+                                                {{ $control['control'] }}
+                                            </button>
+                                        </td>
                                         <td class="num mono">{{ number_format($control['count']) }}</td>
                                         <td>
                                             <div class="bar-cell">
@@ -111,6 +133,8 @@
             </div>
         @endforeach
     @endif
+
+    @include('partials.control-drawer')
 @endsection
 
 @push('scripts')
@@ -130,4 +154,5 @@
     });
 })();
 </script>
+@include('partials.control-drawer-script')
 @endpush

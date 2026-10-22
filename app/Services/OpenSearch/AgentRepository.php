@@ -650,6 +650,161 @@ class AgentRepository
     }
 
     /**
+     * OS name and architecture reported by syscollector, used to pick the
+     * catalog entry that matches the machine (x64 vs arm64 vs Server).
+     */
+    public function systemProfile(string $agentName): array
+    {
+        $empty = [
+            'os_name' => null,
+            'os_version' => null,
+            'os_platform' => null,
+            'hostname' => null,
+            'arch' => null,
+        ];
+
+        $body = [
+            'size' => 1,
+            'query' => ['bool' => ['must' => [['term' => ['agent.name' => $agentName]]]]],
+            '_source' => ['includes' => [
+                'host.os.name',
+                'host.os.version',
+                'host.os.platform',
+                'host.hostname',
+                'host.architecture',
+            ]],
+        ];
+
+        try {
+            $raw = $this->client->searchUncached('wazuh-states-inventory-system-*', $body);
+        } catch (\RuntimeException) {
+            return $empty;
+        }
+
+        $host = $raw['hits']['hits'][0]['_source']['host'] ?? [];
+
+        return [
+            'os_name' => $host['os']['name'] ?? null,
+            'os_version' => $host['os']['version'] ?? null,
+            'os_platform' => $host['os']['platform'] ?? null,
+            'hostname' => $host['hostname'] ?? null,
+            'arch' => $host['architecture'] ?? null,
+        ];
+    }
+
+    /**
+     * CPU, memory and serial number reported by syscollector. Nulls when the
+     * agent has not run the hardware inventory module.
+     */
+    public function hardware(string $agentName): array
+    {
+        $empty = [
+            'available' => false,
+            'cpu_name' => null,
+            'cpu_cores' => null,
+            'cpu_speed' => null,
+            'mem_total' => null,
+            'mem_used' => null,
+            'mem_free' => null,
+            'mem_usage' => null,
+            'serial' => null,
+        ];
+
+        $body = [
+            'size' => 1,
+            'query' => ['bool' => ['must' => [['term' => ['agent.name' => $agentName]]]]],
+            '_source' => ['includes' => [
+                'host.cpu.name',
+                'host.cpu.cores',
+                'host.cpu.speed',
+                'host.memory.total',
+                'host.memory.used',
+                'host.memory.free',
+                'host.memory.usage',
+                'host.serial_number',
+            ]],
+        ];
+
+        try {
+            $raw = $this->client->searchUncached('wazuh-states-inventory-hardware-*', $body);
+        } catch (\RuntimeException) {
+            return $empty;
+        }
+
+        $host = $raw['hits']['hits'][0]['_source']['host'] ?? [];
+
+        if ($host === []) {
+            return $empty;
+        }
+
+        return [
+            'available' => true,
+            'cpu_name' => $host['cpu']['name'] ?? null,
+            'cpu_cores' => isset($host['cpu']['cores']) ? (int) $host['cpu']['cores'] : null,
+            'cpu_speed' => isset($host['cpu']['speed']) ? (int) $host['cpu']['speed'] : null,
+            'mem_total' => isset($host['memory']['total']) ? (int) $host['memory']['total'] : null,
+            'mem_used' => isset($host['memory']['used']) ? (int) $host['memory']['used'] : null,
+            'mem_free' => isset($host['memory']['free']) ? (int) $host['memory']['free'] : null,
+            'mem_usage' => isset($host['memory']['usage']) ? (float) $host['memory']['usage'] : null,
+            'serial' => $host['serial_number'] ?? null,
+        ];
+    }
+
+    /**
+     * Version of a named package on one agent, or null when it is not installed.
+     *
+     * Looked up directly instead of filtering inventory() output: on a machine
+     * with hundreds of npm packages the Windows entries fall outside the page
+     * limit, which would silently drop the version correlation.
+     */
+    public function packageVersion(string $agentName, string $nameFragment): ?string
+    {
+        $body = [
+            'size' => 1,
+            'query' => ['bool' => [
+                'must' => [
+                    ['term' => ['agent.name' => $agentName]],
+                    ['match_phrase' => ['package.name' => $nameFragment]],
+                ],
+            ]],
+            '_source' => ['includes' => ['package.version']],
+        ];
+
+        try {
+            $raw = $this->client->searchUncached('wazuh-states-inventory-packages-*', $body);
+        } catch (\RuntimeException) {
+            return null;
+        }
+
+        return $raw['hits']['hits'][0]['_source']['package']['version'] ?? null;
+    }
+
+    /**
+     * Every KB article reported by any agent. Used by the one-off backfill.
+     */
+    public function allHotfixNames(int $limit = 500): array
+    {
+        $body = [
+            'size' => 0,
+            'aggs' => [
+                'kbs' => ['terms' => ['field' => 'package.hotfix.name', 'size' => $limit]],
+            ],
+        ];
+
+        try {
+            $raw = $this->client->searchUncached('wazuh-states-inventory-hotfixes-*', $body);
+        } catch (\RuntimeException) {
+            return [];
+        }
+
+        return collect($raw['aggregations']['kbs']['buckets'] ?? [])
+            ->pluck('key')
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    /**
      * Vulnerabilities for a single CVE, used by the Top CVEs drill-down.
      */
     public function vulnerabilityByCve(string $cveId, int $limit = 200): array

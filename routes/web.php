@@ -55,6 +55,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/reports/from-vulnerability', [ReportsController::class, 'storeFromVulnerability'])->name('reports.from-vulnerability');
         Route::post('/reports/from-sca', [ReportsController::class, 'storeFromSca'])->name('reports.from-sca');
         Route::put('/reports/{report}', [ReportsController::class, 'update'])->name('reports.update');
+        Route::post('/reports/{report}/status', [ReportsController::class, 'changeStatus'])->name('reports.status');
         Route::post('/reports/{report}/verify', [ReportsController::class, 'verify'])->name('reports.verify');
         Route::post('/reports/{report}/refresh', [ReportsController::class, 'refresh'])->name('reports.refresh');
         Route::post('/reports/{report}/note', [ReportsController::class, 'addNote'])->name('reports.note');
@@ -67,6 +68,9 @@ Route::get('/alert-groups/alerts', [AlertGroupController::class, 'alerts'])->nam
 
     Route::get('/agents', [AgentController::class, 'index'])->name('agents.index');
     Route::get('/agents/{id}', [AgentController::class, 'show'])->name('agents.show');
+    Route::post('/agents/{id}/kb-titles', [AgentController::class, 'kbTitles'])
+        ->middleware(['role:admin,analyst', 'throttle:60,1'])
+        ->name('agents.kb-titles');
     Route::get('/agents/{id}/vulnerabilities', [AgentController::class, 'vulnerabilities'])->name('agents.vulnerabilities');
     Route::get('/agents/{id}/sca', [AgentController::class, 'sca'])->name('agents.sca');
     Route::get('/vulnerabilities/cve/{cve}', [AgentController::class, 'cveDetail'])->name('vulnerabilities.cve');

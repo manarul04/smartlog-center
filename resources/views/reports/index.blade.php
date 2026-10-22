@@ -100,7 +100,7 @@
                 </thead>
                 <tbody>
                     @forelse ($reports as $report)
-                        <tr>
+                        <tr class="row-clickable" data-href="{{ route('reports.show', $report) }}">
                             <td class="mono" style="color:var(--accent)">
                                 <a href="{{ route('reports.show', $report) }}" class="link-strong">{{ $report->reference }}</a>
                             </td>

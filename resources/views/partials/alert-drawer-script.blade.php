@@ -110,13 +110,17 @@
             compHtml += '<div style="margin-bottom:10px"><div class="fs-11 text-muted" style="margin-bottom:4px">' +
                 esc(fw) + '</div><div class="row wrap" style="gap:4px">';
             controls.forEach(function (c) {
-                compHtml += '<span class="badge neutral mono">' + esc(c) + '</span>';
+                compHtml += '<button type="button" class="badge neutral mono compliance-chip"' +
+                    ' data-framework="' + esc(fw) + '" data-code="' + esc(c) + '">' +
+                    esc(c) + '</button>';
             });
             compHtml += '</div></div>';
         });
         if (compHtml) {
             compHost.innerHTML = compHtml;
             compSection.style.display = '';
+            var detail = document.getElementById('adComplianceDetail');
+            if (detail) { detail.style.display = 'none'; detail.innerHTML = ''; }
         } else {
             compSection.style.display = 'none';
         }

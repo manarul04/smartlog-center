@@ -88,7 +88,10 @@
                     <div class="card-body">
                         @foreach (collect($data['tactics'])->sortByDesc('count') as $tactic)
                             <div class="row" style="margin-bottom:10px">
-                                <span class="truncate" style="width:170px;font-size:12px;color:var(--text-primary)">{{ $tactic['tactic'] }}</span>
+                                <a class="tactic-link truncate"
+                                   style="width:170px"
+                                   href="{{ route('explorer.index', ['mitre_tactic' => $tactic['tactic'], 'range' => $range]) }}"
+                                   title="Show alerts mapped to {{ $tactic['tactic'] }}">{{ $tactic['tactic'] }}</a>
                                 <div class="bar-track" style="flex:1">
                                     <div class="bar-fill" style="width:{{ ($tactic['count'] / $maxTactic) * 100 }}%;background:#f43f5e"></div>
                                 </div>
@@ -118,10 +121,16 @@
                                     @foreach (collect($data['techniques'])->sortByDesc('count')->take(12) as $tech)
                                         <tr>
                                             <td class="wrap">
-                                                <a href="{{ route('explorer.index', ['mitre' => $tech['id'], 'range' => $range]) }}" class="link-strong">
-                                                    <span class="mono" style="color:var(--low-text)">{{ $tech['id'] }}</span>
-                                                    · {{ \Illuminate\Support\Str::limit($tech['name'], 46) }}
-                                                </a>
+                                                <button type="button" class="tech-code"
+                                                        data-technique="{{ json_encode([
+                                                            'id' => $tech['id'],
+                                                            'name' => $tech['name'],
+                                                            'count' => (int) $tech['count'],
+                                                            'tactics' => $tech['tactics'],
+                                                            'agents' => $tech['agents'],
+                                                            'explore' => route('explorer.index', ['mitre' => $tech['id'], 'range' => $range]),
+                                                        ], JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP) }}">{{ $tech['id'] }}</button>
+                                                <span class="fs-11 text-muted">· {{ \Illuminate\Support\Str::limit($tech['name'], 46) }}</span>
                                             </td>
                                             <td class="fs-11 text-muted">{{ implode(', ', $tech['tactics']) ?: '—' }}</td>
                                             <td class="num mono">{{ number_format($tech['count']) }}</td>
@@ -135,6 +144,12 @@
             </div>
         @endif
     @endif
+
+    @include('partials.mitre-technique-drawer')
 @endsection
+
+@push('scripts')
+    @include('partials.mitre-technique-drawer-script')
+@endpush
 
 

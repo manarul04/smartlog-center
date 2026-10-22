@@ -97,6 +97,7 @@ class ReportsController extends Controller
 
         $group = null;
         $groupAlerts = [];
+        $compliance = [];
 
         if ($report->isGrouped()) {
             try {
@@ -116,6 +117,13 @@ class ReportsController extends Controller
                     $report->group_window_to?->toIso8601String(),
                     50
                 );
+
+                $compliance = $this->alerts->ruleCompliance(
+                    $agents,
+                    $report->group_rule_id,
+                    $report->group_window_from?->toIso8601String() ?? 'now-30d',
+                    $report->group_window_to?->toIso8601String()
+                );
             } catch (RuntimeException $e) {
                 $group = ['error' => $e->getMessage()];
             }
@@ -126,6 +134,7 @@ class ReportsController extends Controller
             'items' => $items,
             'group' => $group,
             'groupAlerts' => $groupAlerts,
+            'compliance' => $compliance,
             'statuses' => Ticket::STATUSES,
             'types' => Ticket::TYPES,
             'priorities' => Ticket::PRIORITIES,
@@ -326,6 +335,23 @@ class ReportsController extends Controller
         AuditLog::record('report.updated', $report->reference, ['status' => $report->status]);
 
         return back()->with('status', 'Report updated.');
+    }
+
+    /**
+     * One-click status change; the full update form is not required.
+     */
+    public function changeStatus(Request $request, Ticket $report)
+    {
+        $data = $request->validate([
+            'status' => ['required', Rule::in(Ticket::statusKeys())],
+            'note' => ['nullable', 'string', 'max:4000'],
+        ]);
+
+        $this->reports->transition($report, $data['status'], $data['note'] ?? null);
+
+        AuditLog::record('report.status', $report->reference, ['status' => $report->status]);
+
+        return back()->with('status', 'Status set to ' . Ticket::statusLabel($report->status) . '.');
     }
 
     /**

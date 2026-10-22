@@ -30,7 +30,10 @@
 
                     <div class="drawer-section" id="adComplianceSection" style="display:none">
                         <h4>Compliance Mapping</h4>
-                        <div id="adCompliance"></div>
+                        <div id="adCompliance"
+                             data-compliance-catalogue="{{ json_encode(\App\Support\Compliance::catalogue(), JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP) }}"
+                             data-compliance-target="adComplianceDetail"></div>
+                        <div class="compliance-detail" id="adComplianceDetail" style="display:none" aria-live="polite"></div>
                     </div>
 
                     <div class="drawer-section">
@@ -185,3 +188,7 @@
             </div>
         </aside>
     </div>
+
+@push('scripts')
+    @include('partials.compliance-script')
+@endpush

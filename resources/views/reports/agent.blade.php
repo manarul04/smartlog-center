@@ -273,7 +273,7 @@
                     @php
                         $res = strtolower((string) $item['result']);
                         $resToken = match ($res) {
-                            'passed' => 'info',
+                            'passed' => 'success',
                             'failed' => 'critical',
                             default => 'info',
                         };

@@ -49,6 +49,88 @@
             </div>
         </div>
 
+        <div class="card" style="margin-bottom:14px">
+            <div class="card-head">
+                <h3>Hardware</h3>
+                <div class="spacer"></div>
+                <span class="sub">syscollector inventory</span>
+            </div>
+
+            @php
+                $gib = fn ($bytes) => $bytes === null ? '—' : number_format($bytes / 1073741824, 1) . ' GiB';
+                $usage = $hardware['mem_usage'] ?? null;
+                $usagePct = $usage === null ? null : (int) round($usage * 100);
+                $usageTone = $usagePct === null ? 'var(--info)'
+                    : ($usagePct >= 90 ? 'var(--critical)'
+                    : ($usagePct >= 75 ? 'var(--high)' : 'var(--success)'));
+                $hasHw = !empty($hardware['available'])
+                    || !empty($hardware['hostname'])
+                    || !empty($hardware['os_name']);
+            @endphp
+
+            @if (! $hasHw)
+                <div class="empty" style="padding:18px 16px">
+                    No hardware inventory for this agent. Wazuh collects it with the
+                    <span class="mono">syscollector</span> module.
+                </div>
+            @else
+                <div class="hw-strip">
+                    <div class="hw-item">
+                        <div class="k">Operating System</div>
+                        <div class="v hw-os">
+                            <x-os-icon :platform="$hardware['os_platform'] ?? null" :name="$hardware['os_name'] ?? null" />
+                            <span>{{ $hardware['os_name'] ?? '—' }}</span>
+                        </div>
+                        <div class="sub">{{ $hardware['arch'] ?? '' }}</div>
+                    </div>
+
+                    <div class="hw-item">
+                        <div class="k">Host Name</div>
+                        <div class="v">{{ $hardware['hostname'] ?? '—' }}</div>
+                    </div>
+
+                    <div class="hw-item" style="flex-grow:1.6">
+                        <div class="k">Processor</div>
+                        <div class="v">{{ $hardware['cpu_name'] ?? '—' }}</div>
+                        <div class="sub">
+                            {{ $hardware['cpu_cores'] ? $hardware['cpu_cores'] . ' cores' : '—' }}
+                            @if ($hardware['cpu_speed'])
+                                &middot; {{ number_format($hardware['cpu_speed']) }} MHz
+                            @endif
+                        </div>
+                    </div>
+
+                    <div class="hw-item">
+                        <div class="k">Memory</div>
+                        <div class="v">{{ $gib($hardware['mem_total'] ?? null) }}</div>
+                        <div class="sub">
+                            {{ $gib($hardware['mem_used'] ?? null) }} used
+                            &middot; {{ $gib($hardware['mem_free'] ?? null) }} free
+                        </div>
+                    </div>
+
+                    <div class="hw-item" style="flex-grow:0.9">
+                        <div class="k">Memory Usage</div>
+                        @if ($usagePct !== null)
+                            <div class="row" style="margin-top:5px;gap:7px">
+                                <div class="bar-track" style="flex:1">
+                                    <div class="bar-fill" style="width:{{ max(1, min(100, $usagePct)) }}%;background:{{ $usageTone }}"></div>
+                                </div>
+                                <span class="mono fs-11" style="color:{{ $usageTone }}">{{ $usagePct }}%</span>
+                            </div>
+                        @else
+                            <div class="v">—</div>
+                        @endif
+                    </div>
+
+                    <div class="hw-item">
+                        <div class="k">Serial</div>
+                        <div class="v">{{ $hardware['serial'] ?? '—' }}</div>
+                    </div>
+                </div>
+            @endif
+        </div>
+
         <div class="grid grid-2-1">
             <div class="col">
                 <div class="card">
@@ -70,13 +152,17 @@
                         @if ($activity && !empty($activity['top_groups']))
                             @php $maxG = collect($activity['top_groups'])->max('count') ?: 1; @endphp
                             @foreach ($activity['top_groups'] as $group)
-                                <div class="row" style="margin-bottom:9px">
-                                    <span class="truncate" style="width:170px;font-size:12px;color:var(--text-primary)">{{ $group['key'] }}</span>
+                                {{-- Each bar drills into the alerts behind it: this
+                                     agent, this rule group, same 24h window. --}}
+                                <a class="activity-row"
+                                   href="{{ route('explorer.index', ['agent' => $agent['name'], 'group' => $group['key'], 'range' => '24h']) }}"
+                                   title="Open the {{ number_format($group['count']) }} alerts in {{ $group['key'] }}">
+                                    <span class="truncate" style="width:170px;font-size:12px">{{ $group['key'] }}</span>
                                     <div class="bar-track" style="flex:1">
                                         <div class="bar-fill" style="width:{{ ($group['count'] / $maxG) * 100 }}%"></div>
                                     </div>
                                     <span class="mono fs-11 text-secondary" style="width:70px;text-align:right">{{ number_format($group['count']) }}</span>
-                                </div>
+                                </a>
                             @endforeach
                         @else
                             <div class="empty">No events in the last 24 hours.</div>

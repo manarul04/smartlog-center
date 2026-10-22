@@ -304,3 +304,44 @@
       }
     });
   });
+
+  // ---- Help dialogs ------------------------------------------------------
+  // Any [data-help-open="<id>"] opens the matching .modal-backdrop; closing
+  // happens through [data-help-close], the backdrop, or Escape.
+  (function () {
+    function close(backdrop) {
+      if (!backdrop) return;
+      backdrop.style.display = 'none';
+      var trigger = document.querySelector('[data-help-open="' + backdrop.id + '"]');
+      if (trigger) trigger.focus();
+    }
+
+    document.querySelectorAll('[data-help-open]').forEach(function (trigger) {
+      trigger.addEventListener('click', function () {
+        var backdrop = document.getElementById(trigger.getAttribute('data-help-open'));
+        if (!backdrop) return;
+        backdrop.style.display = 'flex';
+        var focusable = backdrop.querySelector('[data-help-close]');
+        if (focusable) focusable.focus();
+      });
+    });
+
+    document.querySelectorAll('[data-help-close]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        close(btn.closest('.modal-backdrop'));
+      });
+    });
+
+    document.querySelectorAll('.modal-backdrop').forEach(function (backdrop) {
+      backdrop.addEventListener('click', function (event) {
+        if (event.target === backdrop) close(backdrop);
+      });
+    });
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key !== 'Escape') return;
+      var open = Array.prototype.slice.call(document.querySelectorAll('.modal-backdrop'))
+        .filter(function (b) { return b.style.display !== 'none'; });
+      if (open.length) close(open[open.length - 1]);
+    });
+  })();
