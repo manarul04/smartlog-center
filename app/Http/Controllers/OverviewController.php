@@ -61,11 +61,18 @@ class OverviewController extends Controller
 
         // Latest high-severity activity and latest authentication failures.
         $latestCritical = [];
+        $latestCriticalRules = [];
         $latestAuthFailures = [];
 
         if ($data !== null) {
             try {
                 $latestCritical = $this->alerts->latestEvents(['level_min' => 10], 5);
+            } catch (RuntimeException) {
+                // Supplementary card; the dashboard still renders.
+            }
+
+            try {
+                $latestCriticalRules = $this->alerts->topRules(['level_min' => 10, 'from' => 'now-7d'], 8);
             } catch (RuntimeException) {
                 // Supplementary card; the dashboard still renders.
             }
@@ -90,6 +97,7 @@ class OverviewController extends Controller
             'openReports' => Ticket::open()->count(),
             'openIncidents' => Ticket::open()->where('type', 'incident')->count(),
             'latestCritical' => $latestCritical,
+            'latestCriticalRules' => $latestCriticalRules,
             'latestAuthFailures' => $latestAuthFailures,
         ]);
     }

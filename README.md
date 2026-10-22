@@ -14,6 +14,7 @@ tanpa build step (CSS/JS langsung dari `public/assets`).
 - [Instalasi manual lewat .env](#instalasi-manual-lewat-env)
 - [Setelah setup](#setelah-setup)
 - [Menjalankan di Laragon](#menjalankan-di-laragon)
+- [Menjalankan dengan Docker](#menjalankan-dengan-docker)
 - [Konfigurasi backend](#konfigurasi-backend)
 - [Troubleshooting installer](#troubleshooting-installer)
 - [Modul](#modul)
@@ -44,7 +45,7 @@ tanpa build step (CSS/JS langsung dari `public/assets`).
 
 ## Kebutuhan
 
-- PHP 8.1 atau lebih baru dengan ekstensi `pdo_pgsql` (atau `pdo_mysql`), `curl`, `openssl`, `mbstring`
+- PHP 8.3 atau lebih baru dengan ekstensi `pdo_pgsql` (atau `pdo_mysql`), `curl`, `openssl`, `mbstring`
 - Composer 2
 - PostgreSQL 13+ (default) atau MySQL 8 / MariaDB 10.6+
 - Akses HTTPS ke Wazuh indexer (biasanya port `9200`)
@@ -189,6 +190,184 @@ Kalau memakai `php artisan serve`, cukup:
 ```bash
 php artisan serve --port=8124
 ```
+
+## Menjalankan dengan Docker
+
+Dua container: **app** (PHP 8.4 + Apache) dan **postgres** (PostgreSQL 16).
+Indexer Wazuh/OpenSearch tidak ikut di-container — ia tetap di alamatnya
+sekarang, dan container hanya perlu punya rute jaringan ke alamat itu. `up`
+tidak butuh salinan atau editan file apa pun: repo membawa `.env.docker` sebagai
+environment default untuk Docker, dan compose me-mount-nya ke
+`/var/www/html/.env`.
+
+### Prasyarat
+
+- Docker Desktop dengan Compose v2. Cek: `docker compose version`
+- Port `8124` di host kosong. Kalau dipakai stack lain, lihat
+  [Troubleshooting Docker](#troubleshooting-docker)
+- Di Windows, menaruh project di filesystem WSL membuat bind-mount jauh lebih
+  cepat; dari `D:\` juga jalan, hanya lebih lambat saat menulis file
+
+### Instalasi
+
+Lima langkah, tidak ada file yang perlu diedit. Perintah di bawah dijalankan dari
+root repo.
+
+**1. Clone repo.**
+
+```bash
+git clone <url-repo> logging
+cd logging
+```
+
+**2. Pastikan `.env.docker` ada.**
+
+```bash
+ls .env.docker        # Windows: Get-Item .env.docker
+```
+
+File ini ikut repo dan sudah berisi `DB_CONNECTION=pgsql`, `DB_HOST=postgres`,
+database/user/password untuk container, serta `APP_URL=http://localhost:8124`.
+Kalau file ini hilang, compose akan membuat *direktori* bernama `.env.docker`
+dan container crash-loop.
+
+**3. Build dan naikkan.**
+
+```bash
+docker compose up -d --build
+```
+
+Build pertama mengunduh `php:8.4-apache` dan `postgres:16-alpine`, lalu
+`composer install`. Perkirakan beberapa menit. Compose menunggu PostgreSQL
+`healthy` sebelum menyalakan app.
+
+**4. Tunggu sampai kedua container hidup.**
+
+```bash
+docker compose ps
+docker compose logs -f app
+```
+
+Yang dituju:
+
+```
+logging-app-1        Up   0.0.0.0:8124->80/tcp
+logging-postgres-1   Up (healthy)
+```
+
+Log app berhenti di `Apache/2.4.x configured -- resuming normal operations`.
+Tekan `Ctrl+C` untuk keluar dari `logs -f`; container tetap jalan.
+
+**5. Buka `http://localhost:8124`.**
+
+Kunjungan pertama dialihkan ke `/setup`. Wizard menjalankan migrasi sendiri,
+jadi `php artisan migrate` tidak perlu dijalankan manual. Isi wizard seperti di
+bagian berikut.
+
+### Isi wizard di Docker
+
+| Langkah | Isian |
+|---|---|
+| Database | Host `postgres` — **bukan** `127.0.0.1`, karena di dalam container itu berarti container app sendiri. Port `5432`; nama database, user, dan port sudah terisi dari `.env.docker` |
+| Password database | Ketik `postgres`. Field ini **selalu kosong** setiap halaman dimuat — sengaja, karena `SetupController` membuang `db_password` dari `withInput()`. Submit dengan field kosong menghasilkan `fe_sendauth: no password supplied` |
+| Wazuh indexer | `https://<ip-wazuh>:9200`, matikan **Verify TLS** untuk sertifikat self-signed |
+| Administrator | Bebas |
+
+Kalau langkah Database berhasil, `/` berubah dari `302 → /setup` menjadi
+`302 → /login`.
+
+Konfigurasi indexer yang diisi wizard **tidak** masuk ke `.env.docker` — ia
+disimpan di tabel `settings`, dengan password terenkripsi memakai `APP_KEY`.
+Yang ditulis wizard ke `.env.docker` hanya kredensial database. Karena file itu
+ikut git, `git status` akan terlihat dirty setelah wizard selesai — itu normal.
+
+Yang **tidak** normal: meng-commit hasil tulisan wizard. Sebelum commit,
+kembalikan file ke versi bersih, atau matikan tracking-nya sama sekali:
+
+```bash
+git checkout -- .env.docker          # buang isian wizard, simpan yang bersih
+git update-index --skip-worktree .env.docker   # atau: jangan pernah ikut ter-commit
+```
+
+### Ganti password default
+
+`.env.docker` memakai `DB_PASSWORD=postgres`, dan compose membuat superuser
+PostgreSQL dari `DOCKER_DB_PASSWORD` dengan nilai default yang sama. Untuk
+menggantinya, isi `DOCKER_DB_PASSWORD` lewat environment saat `up`, lalu samakan
+`DB_PASSWORD` di `.env.docker`:
+
+```bash
+DOCKER_DB_PASSWORD='ganti-ini' docker compose up -d
+```
+
+Keduanya harus sama: compose memakai `DOCKER_DB_PASSWORD` saat inisialisasi
+database, aplikasi memakai `DB_PASSWORD` untuk konek. Compose sengaja tidak
+membaca `DB_PASSWORD` untuk service postgres, dan nama `DOCKER_DB_*` dipilih
+supaya `.env` di host (yang berisi `DB_PASSWORD` milik Laragon) tidak bisa
+membuat password DB berbeda dari yang dibaca aplikasi.
+
+Nilai default `postgres` hanya layak untuk stack yang tidak bisa dijangkau orang
+lain. Port `5432` memang tidak dibuka ke host, tapi itu bukan pengganti password
+yang kuat.
+
+Mengganti password setelah volume `pgdata` terisi tidak mengubah password
+superuser yang sudah ada. Mulai dari database kosong (`docker compose down -v`)
+atau jalankan `ALTER USER` lewat `psql`.
+
+### Volume
+
+| Lokasi | Isi |
+|---|---|
+| `.env.docker` | Bind mount dari folder project, ditulis wizard |
+| volume `app-storage` | `storage/`, termasuk `storage/framework/app-key` |
+| volume `pgdata` | Data PostgreSQL |
+
+`APP_KEY` kosong di `.env.docker` bukan kelalaian: `AppKey::ensure()` menulis
+`storage/framework/app-key` ke dalam volume `app-storage` saat boot pertama.
+Menghapus volume itu membuat key dibuat ulang, sehingga nilai yang tersimpan
+terenkripsi (password indexer di tabel `settings`) tidak bisa dibaca lagi dan
+semua user ter-logout.
+
+`docker compose down` mempertahankan volume di atas. **`docker compose down -v`
+menghapus semuanya**, termasuk database.
+
+### Perintah harian
+
+```bash
+docker compose up -d
+docker compose down
+docker compose logs -f app
+docker compose restart app
+docker compose exec app php artisan tinker
+docker compose exec postgres psql -U postgres -d wazuh_logging
+```
+
+### Catatan
+
+- Jangan mengganti server container ke `php artisan serve`. Wizard menjalankan
+  migrasi di tengah request, dan dev server single-threaded akan deadlock di
+  situ. Image memakai Apache.
+- Untuk indexer dengan sertifikat self-signed, `OPENSEARCH_TLS_VERIFY=false`
+  sudah jadi default. Mengaktifkannya berarti memasang CA ke dalam image.
+- Kalau app membalas 500 tepat setelah `up`, jalankan
+  `docker compose exec app php artisan config:clear` — config ter-cache dari
+  `.env` sebelumnya penyebab yang paling sering.
+- Update: `git pull && docker compose up -d --build`.
+- `ENV_FILE=.env docker compose up -d` menjalankan stack dengan `.env` Laragon,
+  bukan `.env.docker`.
+
+### Troubleshooting Docker
+
+| Gejala | Penyebab dan solusi |
+|---|---|
+| `Bind for 0.0.0.0:8124 failed: port is already allocated` | Ada container lain di port itu. Cek `docker ps --filter publish=8124`, lalu `docker compose -p <nama> stop` untuk stack lain, atau ubah port di `docker-compose.yml` |
+| Container crash-loop, file `.env` di host jadi direktori | Bind mount menunjuk file yang belum ada, jadi Docker membuat direktori. Terjadi misalnya saat `ENV_FILE=.env` dipakai tanpa `.env`. Hapus direktori itu (`rm -rf .env`), lalu `docker compose up -d` lagi. |
+| `500` dan log berisi `Failed to parse dotenv file. Encountered unexpected whitespace` | Ada nilai di `.env.docker` yang mengandung spasi tapi tidak dikutip. Bungkus dengan tanda kutip: `APP_NAME="Smart Log Center"` |
+| `500`, dan log berisi `could not be opened in append mode: Permission denied` | `storage/logs/laravel.log` dimiliki `root`, bukan `www-data` — biasanya karena ada yang menjalankan `docker compose exec app php artisan ...`. Perbaiki: `docker compose exec app chown -R www-data:www-data storage bootstrap/cache`. `.env.docker` sudah memakai `LOG_CHANNEL=stderr` supaya ini tidak berulang |
+| `password authentication failed for user "postgres"` | `DB_PASSWORD` di `.env.docker` tidak lagi sama dengan `DOCKER_DB_PASSWORD` yang dipakai saat volume `pgdata` dibuat. Samakan nilainya, atau `docker compose down -v` untuk memulai database dari kosong. |
+| `fe_sendauth: no password supplied` di wizard | Field password memang kosong setiap kali halaman dimuat. Ketik `postgres`, atau nilai `DB_PASSWORD` di `.env.docker` kalau sudah diganti |
+| 500 tepat setelah `up` | Config ter-cache dari `.env` sebelumnya. Jalankan `docker compose exec app php artisan config:clear`. |
+| `could not find driver` | Image lama atau bukan image dari repo ini. Jalankan `docker compose build --no-cache app`; image resmi sudah memuat `pdo_pgsql`. |
 
 ## Konfigurasi backend
 

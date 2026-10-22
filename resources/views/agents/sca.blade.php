@@ -137,7 +137,13 @@
                         <th>Title</th>
                         <th style="width:96px">Result</th>
                         <th style="width:150px">Policy</th>
-                        <th style="width:130px">Handling</th>
+                        {{-- Handling column hidden for now: the same state is
+                             visible in the check drawer, and the column made the
+                             table wider than it needed to be. Remove this guard
+                             to bring it back. --}}
+                        @if (false)
+                            <th style="width:130px">Handling</th>
+                        @endif
                         <th style="width:70px"></th>
                     </tr>
                 </thead>
@@ -152,10 +158,34 @@
                                 default => 'neutral',
                             };
                             $state = $item['state'];
-                            $stateKey = $state->status ?? 'open';
+                            $stateKey = $state->status ?? 'not_reviewed';
+                            $isPassed = $res === 'passed';
+
+                            // Everything the read-only drawer shows. Built for
+                            // every row, passed ones included.
+                            $checkPayload = [
+                                'check_id' => $item['check_id'],
+                                'policy' => $item['policy'],
+                                'title' => $item['title'],
+                                'result' => $item['result'],
+                                'status_label' => \App\Models\Ticket::statusLabel($stateKey),
+                                'rationale' => $item['rationale'],
+                                'description' => $item['description'],
+                                'remediation' => $item['remediation'],
+                                'command' => $item['command'],
+                                'directory' => $item['directory'],
+                            ];
                         @endphp
                         <tr>
-                            <td class="mono fs-11">{{ $item['check_id'] ?: '—' }}</td>
+                            <td class="mono fs-11">
+                                @if ($item['check_id'])
+                                    <button type="button" class="check-code"
+                                            data-check="{{ json_encode($checkPayload, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP) }}"
+                                            title="Open the details of check {{ $item['check_id'] }}">{{ $item['check_id'] }}</button>
+                                @else
+                                    —
+                                @endif
+                            </td>
                             <td class="wrap">
                                 <div style="font-size:12.5px;font-weight:550">{{ $item['title'] }}</div>
                                 @if ($item['rationale'])
@@ -166,37 +196,46 @@
                                 <span class="badge {{ $resClass }}">{{ ucfirst($item['result']) }}</span>
                             </td>
                             <td class="fs-11 text-secondary wrap">{{ \Illuminate\Support\Str::limit($item['policy'] ?? '—', 30) }}</td>
+                            @if (false)
                             <td>
-                                <span class="status-chip" style="--chip:{{ \App\Models\Ticket::statusColor($stateKey) }}">
-                                    {{ \App\Models\Ticket::statusLabel($stateKey) }}
-                                </span>
-                                @if ($state && $state->assignee)
-                                    <div class="fs-11 text-muted">{{ $state->assignee->name }}</div>
+                                @if ($isPassed)
+                                    <span class="text-muted fs-11">&mdash;</span>
+                                @else
+                                    <span class="status-chip {{ \App\Models\Ticket::isUnreviewed($stateKey) ? 'is-muted' : '' }}"
+                                          style="--chip:{{ \App\Models\Ticket::statusColor($stateKey) }}">
+                                        {{ \App\Models\Ticket::statusLabel($stateKey) }}
+                                    </span>
+                                    @if ($state && $state->assignee)
+                                        <div class="fs-11 text-muted">{{ $state->assignee->name }}</div>
+                                    @endif
                                 @endif
                             </td>
+                            @endif
                             <td>
-                                @php
-                                    $payload = [
-                                        'check_id' => $item['check_id'],
-                                        'policy' => $item['policy'],
-                                        'title' => $item['title'],
-                                        'result' => $item['result'],
-                                        'status' => $stateKey,
-                                        'note' => $state->note ?? '',
-                                        'assignee_id' => $state->assignee_id ?? null,
-                                        'remediation' => $item['remediation'],
-                                        'description' => $item['description'],
-                                        'command' => $item['command'],
-                                        'directory' => $item['directory'],
-                                    ];
-                                @endphp
-                                <button type="button" class="btn ghost sm"
-                                        data-sca="{{ json_encode($payload, JSON_HEX_APOS | JSON_HEX_QUOT) }}">Handle</button>
+                                @if (! $isPassed)
+                                    @php
+                                        $payload = [
+                                            'check_id' => $item['check_id'],
+                                            'policy' => $item['policy'],
+                                            'title' => $item['title'],
+                                            'result' => $item['result'],
+                                            'status' => $stateKey,
+                                            'note' => $state->note ?? '',
+                                            'assignee_id' => $state->assignee_id ?? null,
+                                            'remediation' => $item['remediation'],
+                                            'description' => $item['description'],
+                                            'command' => $item['command'],
+                                            'directory' => $item['directory'],
+                                        ];
+                                    @endphp
+                                    <button type="button" class="btn ghost sm"
+                                            data-sca="{{ json_encode($payload, JSON_HEX_APOS | JSON_HEX_QUOT) }}">Handle</button>
+                                @endif
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="empty">
+                            <td colspan="5" class="empty">
                                 <x-empty-icon name="clipboard" />
                                 No SCA checks match the current filters.
                             </td>
@@ -232,22 +271,24 @@
         @endif
     </div>
 
+    @include('partials.sca-check-drawer')
+
     @can('triage')
         {{-- Handling drawer --}}
-        <div class="modal-backdrop" id="scaModal" style="display:none">
-            <div class="modal">
-                <div class="modal-head">
+        <div class="drawer-backdrop" id="scaDrawer" style="display:none">
+            <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="scaDrawerTitle">
+                <div class="drawer-head">
                     <div>
-                        <div class="fs-11 text-muted mono" id="scaModalCheck">—</div>
-                        <h3 id="scaModalTitle" style="margin:2px 0 0">—</h3>
+                        <div class="fs-11 text-muted mono" id="scaDrawerCheck">—</div>
+                        <h3 id="scaDrawerTitle" style="margin:2px 0 0">—</h3>
                     </div>
-                    <button type="button" class="btn ghost sm" id="scaModalClose" aria-label="Close">&times;</button>
+                    <button type="button" class="btn ghost sm" id="scaDrawerClose" aria-label="Close">&times;</button>
                 </div>
 
-                <div class="modal-body">
-                    <div class="detail-grid" id="scaModalFacts"></div>
+                <div class="drawer-body">
+                    <div class="detail-grid" id="scaDrawerFacts"></div>
 
-                    <div id="scaModalRemediation" class="mt-14"></div>
+                    <div id="scaDrawerRemediation" class="mt-14"></div>
 
                     <div class="row wrap" style="gap:6px;margin-top:14px">
                         <button type="button" class="btn sm" id="scaToggleReport">
@@ -309,22 +350,23 @@
                         </form>
                     </div>
                 </div>
-            </div>
+            </aside>
         </div>
     @endcan
 @endsection
 
 @push('scripts')
+    @include('partials.sca-check-drawer-script')
 @can('triage')
 <script>
 (function () {
-    var modal = document.getElementById('scaModal');
-    if (!modal) return;
+    var drawer = document.getElementById('scaDrawer');
+    if (!drawer) return;
 
-    var elCheck = document.getElementById('scaModalCheck');
-    var elTitle = document.getElementById('scaModalTitle');
-    var elFacts = document.getElementById('scaModalFacts');
-    var elRemediation = document.getElementById('scaModalRemediation');
+    var elCheck = document.getElementById('scaDrawerCheck');
+    var elTitle = document.getElementById('scaDrawerTitle');
+    var elFacts = document.getElementById('scaDrawerFacts');
+    var elRemediation = document.getElementById('scaDrawerRemediation');
     var fCheck = document.getElementById('scaFieldCheckId');
     var fPolicy = document.getElementById('scaFieldPolicy');
     var fAssignee = document.getElementById('scaAssignee');
@@ -370,7 +412,7 @@
             fAssignee.value = d.assignee_id || '';
             fDue.value = '';
 
-            // Keep the modal short: the report form is opt-in.
+            // Keep the drawer short: the report form is opt-in.
             if (reportSection) reportSection.style.display = 'none';
 
             var stateEl = document.getElementById('scaCurrentState');
@@ -388,11 +430,11 @@
                 }
             }
 
-            modal.style.display = 'flex';
+            drawer.style.display = 'flex';
         });
     });
 
-    function close() { modal.style.display = 'none'; }
+    function close() { drawer.style.display = 'none'; }
 
     var toggleReport = document.getElementById('scaToggleReport');
     if (toggleReport && reportSection) {
@@ -405,8 +447,8 @@
         cancelReport.addEventListener('click', function () { reportSection.style.display = 'none'; });
     }
 
-    document.getElementById('scaModalClose').addEventListener('click', close);
-    modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+    document.getElementById('scaDrawerClose').addEventListener('click', close);
+    drawer.addEventListener('click', function (e) { if (e.target === drawer) close(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
 })();
 </script>

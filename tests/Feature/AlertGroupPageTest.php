@@ -58,6 +58,17 @@ class AlertGroupPageTest extends TestCase
         $this->actingAs($user)->get('/alert-groups')->assertOk();
     }
 
+    public function test_the_alert_groups_page_explains_levels_and_statuses(): void
+    {
+        $this->actingAs($this->admin())
+            ->get('/alert-groups')
+            ->assertOk()
+            ->assertSee('data-help-open="alertHelp"', false)
+            ->assertSee('Reading levels and statuses')
+            ->assertSee('False Positive')
+            ->assertSee('Counts as closed, leaves the queue');
+    }
+
     public function test_a_viewer_cannot_create_a_report_from_a_group(): void
     {
         $viewer = User::create([

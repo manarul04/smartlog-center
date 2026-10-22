@@ -1,0 +1,33 @@
+.git
+.github
+.idea
+.vscode
+.fleet
+
+vendor
+node_modules
+
+# Jangan ikutkan konfigurasi host. .env.example tetap masuk build context:
+# entrypoint memakainya sebagai fallback bila .env tidak ter-mount.
+.env
+.env.backup
+.env.production
+auth.json
+
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/framework/app-key
+bootstrap/cache/*.php
+
+.phpunit.result.cache
+.phpunit.cache
+
+# Symlink hasil `php artisan storage:link` di host (junction Windows di Laragon).
+# Dibuat ulang oleh entrypoint; kalau ikut ter-copy bisa jadi direktori besar.
+public/storage
+public/hot
+
+Dockerfile
+docker-compose.yml

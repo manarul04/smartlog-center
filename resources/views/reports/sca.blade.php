@@ -101,7 +101,11 @@
             @forelse ($items as $item)
                 @php
                     $res = strtolower((string) $item['result']);
-                    $resToken = $res === 'failed' ? 'critical' : 'info';
+                    $resToken = match ($res) {
+                        'passed' => 'success',
+                        'failed' => 'critical',
+                        default => 'info',
+                    };
                 @endphp
                 <tr>
                     <td class="mono">{{ $item['check_id'] ?: '—' }}</td>

@@ -6,9 +6,11 @@ use App\Models\AuditLog;
 use App\Models\User;
 use App\Models\Ticket;
 use App\Models\TicketItem;
+use App\Services\KbCatalogService;
 use App\Services\OpenSearch\AgentRepository;
 use App\Services\OpenSearch\AlertRepository;
 use App\Support\ReportRange;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -19,6 +21,7 @@ class AgentController extends Controller
     public function __construct(
         private AgentRepository $agents,
         private AlertRepository $alerts,
+        private KbCatalogService $kbCatalog,
     ) {}
 
     public function index(): View
@@ -87,6 +90,10 @@ class AgentController extends Controller
         $scaFacets = ['total' => 0, 'result' => [], 'policies' => []];
         $scaRows = [];
         $inventory = ['packages' => ['items' => [], 'total' => 0, 'types' => []], 'hotfixes' => ['items' => [], 'total' => 0]];
+        $hardware = ['available' => false];
+        $kbTitles = [];
+        $kbPending = [];
+        $kbContext = [];
 
         if ($status !== null) {
             try {
@@ -107,6 +114,38 @@ class AgentController extends Controller
             } catch (RuntimeException) {
                 // Inventory may not be enabled on every agent.
             }
+
+            try {
+                $hardware = $this->agents->hardware($status['name']);
+
+                // Hostname, OS platform and architecture live in the system
+                // inventory, not the hardware one, so they are merged here.
+                $profile = $this->agents->systemProfile($status['name']);
+                $hardware = array_merge($hardware, [
+                    'hostname' => $profile['hostname'] ?? null,
+                    'os_name' => $profile['os_name'] ?? null,
+                    'os_platform' => $profile['os_platform'] ?? null,
+                    'arch' => $profile['arch'] ?? null,
+                ]);
+            } catch (RuntimeException) {
+                // Syscollector may not ship the hardware module.
+            }
+
+            // Titles come from the local cache only: the page must never wait
+            // on Microsoft. Anything still pending is resolved in the
+            // background by kbTitles() once the page is already on screen.
+            if (! empty($inventory['hotfixes']['items'])) {
+                try {
+                    $kbContext = $this->kbContext($status['name']);
+                    $kbTitles = $this->kbCatalog->titles($inventory['hotfixes']['items'], $kbContext);
+                    $kbPending = array_keys(array_filter(
+                        $kbTitles,
+                        fn ($t) => $t['status'] === 'pending'
+                    ));
+                } catch (\Throwable) {
+                    // The KB table degrades to bare codes.
+                }
+            }
         }
 
         return view('agents.show', [
@@ -118,7 +157,55 @@ class AgentController extends Controller
             'scaFacets' => $scaFacets,
             'scaRow' => $scaRows,
             'inventory' => $inventory,
+            'hardware' => $hardware,
+            'kbTitles' => $kbTitles,
+            'kbPending' => $kbPending,
         ]);
+    }
+
+    /**
+     * Resolve a few missing KB titles, then hand the new rows back to the page.
+     *
+     * Called from the agent page after render, in small batches, so the visitor
+     * pays for the lookups one screen at a time instead of on every load.
+     */
+    public function kbTitles(string $id): JsonResponse
+    {
+        $status = collect($this->agents->latestStatus())->firstWhere('id', $id);
+
+        if ($status === null) {
+            return response()->json(['error' => 'Agent not found'], 404);
+        }
+
+        $inventory = $this->agents->inventory($status['name'], 500);
+        $kbs = $inventory['hotfixes']['items'] ?? [];
+
+        if ($kbs === []) {
+            return response()->json(['titles' => [], 'remaining' => 0]);
+        }
+
+        $context = $this->kbContext($status['name']);
+        $titles = $this->kbCatalog->resolve($kbs, (int) config('kb.batch', 5), $context);
+
+        return response()->json([
+            'titles' => $titles,
+            'remaining' => count($this->kbCatalog->pending($kbs)),
+        ]);
+    }
+
+    /**
+     * Host OS/arch plus the installed Windows Security version, so the catalog
+     * entry chosen for a KB matches the machine that reported it.
+     */
+    private function kbContext(string $agentName): array
+    {
+        $profile = $this->agents->systemProfile($agentName);
+
+        return [
+            'os_name' => $profile['os_name'] ?? null,
+            'arch' => $profile['arch'] ?? null,
+            'package_version' => $this->agents->packageVersion($agentName, 'Windows Security'),
+        ];
     }
 
     /**

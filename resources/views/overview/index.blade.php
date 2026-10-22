@@ -267,7 +267,10 @@
                     @php $maxDec = collect($data['decoders'])->max('count') ?: 1; @endphp
                     @forelse ($data['decoders'] as $dec)
                         <div class="row" style="margin-bottom:9px">
-                            <span class="truncate mono" style="width:190px;font-size:11.5px;color:var(--text-primary)">{{ $dec['key'] }}</span>
+                            <a class="truncate mono source-link"
+                               style="width:190px"
+                               href="{{ route('explorer.index', ['decoder' => $dec['key'], 'range' => $range]) }}"
+                               title="Show alerts from decoder {{ $dec['key'] }}">{{ $dec['key'] }}</a>
                             <div class="bar-track" style="flex:1">
                                 <div class="bar-fill" style="width:{{ ($dec['count'] / $maxDec) * 100 }}%;background:#8b5cf6"></div>
                             </div>
@@ -289,20 +292,22 @@
                     <a href="{{ route('explorer.index', ['range' => '7d', 'level_min' => 10]) }}" class="btn ghost sm">View all</a>
                 </div>
                 <div class="card-body flush">
-                    @forelse ($latestCritical as $event)
-                        @php
-                            $src = $event['source'];
-                            $lvl = (int) ($src['rule']['level'] ?? 0);
-                        @endphp
+                    @forelse ($latestCriticalRules ?? [] as $rule)
+                        @php $lvl = (int) ($rule['level'] ?? 0); @endphp
                         <a class="latest-row"
-                           href="{{ route('explorer.index', ['range' => '7d', 'alert' => $event['source']['id'] ?? '']) }}">
+                           href="{{ route('explorer.index', ['rule_id' => $rule['id'], 'range' => '7d', 'level_min' => 10]) }}">
                             <span class="badge {{ \App\Support\Severity::token($lvl) }}" style="flex-shrink:0">{{ $lvl }}</span>
                             <span class="latest-main">
-                                <span class="latest-title">{{ \Illuminate\Support\Str::limit($src['rule']['description'] ?? '—', 74) }}</span>
+                                <span class="latest-title">{{ \Illuminate\Support\Str::limit($rule['description'] ?: 'Rule ' . $rule['id'], 74) }}</span>
                                 <span class="latest-meta">
-                                    {{ $src['agent']['name'] ?? '—' }}
-                                    &middot; rule {{ $src['rule']['id'] ?? '?' }}
-                                    &middot; {{ isset($src['timestamp']) ? \Illuminate\Support\Carbon::parse($src['timestamp'])->diffForHumans() : '' }}
+                                    rule {{ $rule['id'] }}
+                                    &middot; <strong>{{ number_format($rule['count']) }}</strong> alerts
+                                    @if (!empty($rule['agents']))
+                                        &middot; {{ count($rule['agents']) }} {{ count($rule['agents']) === 1 ? 'agent' : 'agents' }}
+                                    @endif
+                                    @if (!empty($rule['last_seen']))
+                                        &middot; {{ \Illuminate\Support\Carbon::parse($rule['last_seen'])->diffForHumans() }}
+                                    @endif
                                 </span>
                             </span>
                         </a>

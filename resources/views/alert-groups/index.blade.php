@@ -7,6 +7,10 @@
     <x-breadcrumb :items="[['label' => 'Alert Groups']]" />
 @endsection
 
+@section('actions')
+    <x-alert-help context="groups" />
+@endsection
+
 @section('content')
     @if ($error)
         <div class="banner error"><div><strong>Query failed.</strong> {{ $error }}</div></div>

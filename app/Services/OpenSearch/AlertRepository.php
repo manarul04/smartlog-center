@@ -416,6 +416,15 @@ class AlertRepository
         if (! empty($filters['mitre'])) {
             $clauses[] = ['term' => ['rule.mitre.id' => $filters['mitre']]];
         }
+        if (! empty($filters['mitre_tactic'])) {
+            $clauses[] = ['term' => ['rule.mitre.tactic' => $filters['mitre_tactic']]];
+        }
+        if (! empty($filters['decoder'])) {
+            $clauses[] = ['term' => ['decoder.name' => $filters['decoder']]];
+        }
+        if (! empty($filters['rule_id'])) {
+            $clauses[] = ['term' => ['rule.id' => (string) $filters['rule_id']]];
+        }
         if (! empty($filters['compliance_field']) && ! empty($filters['compliance_value'])) {
             $clauses[] = ['term' => [$filters['compliance_field'] => $filters['compliance_value']]];
         }
@@ -558,6 +567,78 @@ class AlertRepository
     }
 
     /**
+     * Unique rules behind a slice of alerts, with how often each fired.
+     *
+     * The dashboard card used to list individual events, which repeated the same
+     * rule five times. Aggregating on the rule id answers "what keeps firing"
+     * instead of "what fired last".
+     *
+     * @return array<int, array{id: string, description: ?string, level: int, count: int, last_seen: ?string, agents: array<int, string>}>
+     */
+    public function topRules(array $options = [], int $limit = 8): array
+    {
+        $must = [];
+
+        if (isset($options['level_min'])) {
+            $range = ['gte' => (int) $options['level_min']];
+            if (isset($options['level_max'])) {
+                $range['lte'] = (int) $options['level_max'];
+            }
+            $must[] = ['range' => ['rule.level' => $range]];
+        }
+
+        if (! empty($options['group'])) {
+            $must[] = ['term' => ['rule.groups' => $options['group']]];
+        }
+
+        if (! empty($options['from'])) {
+            $must[] = $this->timeRange($options['from']);
+        }
+
+        $body = [
+            'size' => 0,
+            'track_total_hits' => false,
+            'query' => $must === [] ? ['match_all' => new \stdClass()] : ['bool' => ['must' => $must]],
+            'aggs' => [
+                'rules' => [
+                    'terms' => [
+                        'field' => 'rule.id',
+                        'size' => $limit,
+                        'order' => ['_count' => 'desc'],
+                    ],
+                    'aggs' => [
+                        'level' => ['max' => ['field' => 'rule.level']],
+                        'last_seen' => ['max' => ['field' => 'timestamp']],
+                        'agents' => ['terms' => ['field' => 'agent.name', 'size' => 3]],
+                        'meta' => [
+                            'top_hits' => [
+                                'size' => 1,
+                                '_source' => ['includes' => ['rule.description', 'rule.level']],
+                                'sort' => [['timestamp' => ['order' => 'desc']]],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $raw = $this->client->searchUncached($this->alertsIndex(), $body);
+
+        return collect($raw['aggregations']['rules']['buckets'] ?? [])->map(function ($b) {
+            $hit = $b['meta']['hits']['hits'][0]['_source']['rule'] ?? [];
+
+            return [
+                'id' => (string) $b['key'],
+                'description' => $hit['description'] ?? null,
+                'level' => (int) round($b['level']['value'] ?? 0),
+                'count' => (int) $b['doc_count'],
+                'last_seen' => $b['last_seen']['value_as_string'] ?? null,
+                'agents' => collect($b['agents']['buckets'] ?? [])->pluck('key')->all(),
+            ];
+        })->values()->all();
+    }
+
+    /**
      * Total alerts in a window, used as the denominator for triage coverage.
      */
     public function countInRange(string $from, ?string $to = null): int
@@ -683,6 +764,65 @@ class AlertRepository
             'id' => $hit['_id'],
             'source' => $hit['_source'] ?? [],
         ])->all();
+    }
+
+    /**
+     * Compliance controls attached to one rule. The mapping lives on the rule, so
+     * a single hit is enough; taken from the newest alert to survive a ruleset
+     * update mid-window.
+     *
+     * @return array<string, array<int, string>> framework => control codes
+     */
+    public function ruleCompliance(array $agents, string $ruleId, string $from, ?string $to = null): array
+    {
+        $must = [
+            ['term' => ['rule.id' => $ruleId]],
+            $this->agentClause($agents),
+            ['range' => ['timestamp' => ['gte' => $from]]],
+        ];
+
+        if ($to !== null) {
+            $must[2]['range']['timestamp']['lte'] = $to;
+        }
+
+        $body = [
+            'size' => 1,
+            'sort' => [['timestamp' => ['order' => 'desc']]],
+            'query' => ['bool' => ['must' => $must]],
+            '_source' => [
+                'includes' => [
+                    'rule.pci_dss', 'rule.hipaa', 'rule.gdpr',
+                    'rule.nist_800_53', 'rule.tsc',
+                ],
+            ],
+        ];
+
+        try {
+            $raw = $this->client->searchUncached($this->alertsIndex(), $body);
+        } catch (\RuntimeException) {
+            return [];
+        }
+
+        $rule = $raw['hits']['hits'][0]['_source']['rule'] ?? [];
+
+        $fields = [
+            'PCI DSS' => 'pci_dss',
+            'HIPAA' => 'hipaa',
+            'GDPR' => 'gdpr',
+            'NIST 800-53' => 'nist_800_53',
+            'TSC' => 'tsc',
+        ];
+
+        $result = [];
+        foreach ($fields as $framework => $field) {
+            $codes = array_values(array_unique(array_filter((array) ($rule[$field] ?? []))));
+
+            if ($codes !== []) {
+                $result[$framework] = array_map('strval', $codes);
+            }
+        }
+
+        return $result;
     }
 
     /**
